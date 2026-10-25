@@ -6,4 +6,5 @@ __pycache__/
 *.tellal_indir
 *Logs/
 old.py
-api.txt
+.son_surum
+

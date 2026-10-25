@@ -31,6 +31,45 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+SURUM = "1.0.5"
+SURUM_NOTLARI = {
+    "1.0.5": [
+        "Hashtag çakışması ve çift diyez (##) hatası giderildi.",
+        "Canlı Maç ve Maç Sonu menülerinde tarih formatı doğrulaması (YYYY-MM-DD) eklendi.",
+        "Tüm duyuru türleri için saat girişleri güvenli ve zorunlu formata (SS:DD) bağlandı.",
+        "saat_al() fonksiyonundaki varsayılan parametre (default) hatası düzeltildi.",
+        "Render bitiş sesi asenkron yapılarak terminal donması engellendi.",
+        "SEO metinleri render gecikse dahi masaüstüne kaydedilecek şekilde güvenceye alındı.",
+        "Masaüstünde eski video açıksa silinememe durumunda bilgilendirme uyarısı eklendi.",
+        "Takım arama (FC/AC/AS takımları) ve görsel dönüştürme fonksiyonları güçlendirildi.",
+    ]
+}
+
+
+def yenilikleri_goster():
+    """Yeni bir sürüme geçildiğinde sürüm notlarını kullanıcıya bir kerelik gösterir."""
+    surum_dosyasi = os.path.join(SCRIPT_DIR, ".son_surum")
+    son_surum = None
+    if os.path.exists(surum_dosyasi):
+        try:
+            with open(surum_dosyasi, "r", encoding="utf-8") as f:
+                son_surum = f.read().strip()
+        except Exception:
+            pass
+
+    if son_surum != SURUM:
+        notlar = SURUM_NOTLARI.get(SURUM, [])
+        if notlar:
+            maddeler = "\n".join(f"  [bold green]✓[/bold green] {madde}" for madde in notlar)
+            icerik = f"[bold cyan]Tellal v{SURUM} Yenilikleri:[/bold cyan]\n\n{maddeler}"
+            console.print(Panel(icerik, title="[bold yellow]🎉 Sürüm Güncellendi!", expand=False))
+        try:
+            with open(surum_dosyasi, "w", encoding="utf-8") as f:
+                f.write(SURUM)
+        except Exception:
+            pass
+
+
 # =====================================================================
 # OTOMATİK GÜNCELLEME (GitHub)
 # =====================================================================
@@ -492,7 +531,7 @@ def uykusuz_tosba_menu():
 [bold cyan]4.[/bold cyan] Tek Maçtan Yatanlar
 [bold cyan]5.[/bold cyan] FC27 Kariyer
 [bold cyan]6.[/bold cyan] Geri"""
-        console.print(Panel(menu, title="[bold yellow]🐢 Uykusuz Tosba Duyuru Sistemi", expand=False))
+        console.print(Panel(menu, title=f"[bold yellow]🐢 Uykusuz Tosba Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
     
         secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6"])
 
@@ -1003,7 +1042,7 @@ def ana_menu():
         menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Çıkış"""
-        console.print(Panel(menu, title="[bold yellow]▶️ Youtube Duyuru Sistemi", expand=False))
+        console.print(Panel(menu, title=f"[bold yellow]▶️ Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
         ana_secim = Prompt.ask("[bold green]Sistem seçin[/bold green]", choices=["1", "2", "3"])
 
@@ -1017,5 +1056,6 @@ def ana_menu():
 
 
 if __name__ == "__main__":
+    yenilikleri_goster()
     ana_menu()
 
