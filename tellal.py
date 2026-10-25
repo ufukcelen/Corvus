@@ -31,8 +31,12 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.0.5"
+SURUM = "1.0.6"
 SURUM_NOTLARI = {
+    "1.0.6": [
+        "Radio Mocas menüsüne 2. seçenek olarak 'Albert ve Cem' canlı yayın otomasyonu eklendi.",
+        "albert.json ve albertSeo.txt otomatik üretim ve planlama desteği tamamlandı.",
+    ],
     "1.0.5": [
         "Hashtag çakışması ve çift diyez (##) hatası giderildi.",
         "Canlı Maç ve Maç Sonu menülerinde tarih formatı doğrulaması (YYYY-MM-DD) eklendi.",
@@ -78,6 +82,7 @@ GITHUB_BRANCH = "main"
 SCRIPT_GITHUB_ADI = "tellal.py"  
 
 SEED_YOLLARI = {
+    "Albert/albert.json",
     "FC Kariyer Duyuru/Assets/takımlogo.png",
     "FC Kariyer Duyuru/kariyer_takim.json",
     "Memleket Duyuru/yayınSub.png",
@@ -256,6 +261,12 @@ MEM_PROJE_ADAYLARI = ["memlketDuyAe.aep", "memleketDuyAe.aep"]
 MEM_KOMPOZISYON = "memSahne"
 MEM_VARSAYILAN_SAAT = "22:00"
 MEM_BASLIK = "BU AKŞAM" 
+
+ALBERT_DIR = os.path.join(SCRIPT_DIR, "Albert")
+ALBERT_PROJE_YOLU = os.path.join(ALBERT_DIR, "albert.aep")
+ALBERT_JSON_YOLU = os.path.join(ALBERT_DIR, "albert.json")
+ALBERT_KOMPOZISYON = "albertSahne"
+ALBERT_VARSAYILAN_SAAT = "23:00" 
 
 TMY_DIR = os.path.join(SCRIPT_DIR, "Tekmaç")
 TMY_ASSETS_DIR = os.path.join(TMY_DIR, "Assets")
@@ -766,6 +777,55 @@ def memleket_duyuru_yap():
         console.print("[dim]Render atlandı.[/dim]")
 
 
+ALBERT_SEO_SABLON = """-Albert ve Cem- Canlı Yayın -
+
+Dikkat edin içerisi ağır dram içerir.Yayın tekrarı yoktur.Kaçıracak olanlar şimdiden üzülebilir.(+18)
+
+#albertvecem #canlıyayın #sohbet #efkar #dram
+
+cemi etiketle
+
+{planla}saatine planla
+
+video müzikli ama istersen müziği iptal edip cemin müziklerinden birini koyabilirsin.
+-
+"""
+
+
+def seo_albert_yaz(saat, video_adi):
+    plan, onceki_gun = planlama_saati(saat)
+    if plan:
+        gun = " (bir önceki gün) " if onceki_gun else " "
+        plan_metni = f"{plan}{gun}"
+    else:
+        plan_metni = "yayın saatinden 4 saat önce "
+    icerik = ALBERT_SEO_SABLON.format(planla=plan_metni)
+    seo_yaz("albertSeo.txt", icerik, video_adi)
+
+
+def albert_ve_cem_yap():
+    if not os.path.isdir(ALBERT_DIR):
+        console.print(f"[bold red][HATA][/bold red] Albert klasörü bulunamadı: {ALBERT_DIR}")
+        return
+    if not os.path.exists(ALBERT_PROJE_YOLU):
+        console.print(f"[bold red][HATA][/bold red] After Effects projesi bulunamadı: {ALBERT_PROJE_YOLU}")
+        return
+
+    saat = saat_oner_al(ALBERT_VARSAYILAN_SAAT)
+
+    with open(ALBERT_JSON_YOLU, "w", encoding="utf-8") as f:
+        json.dump({"baslik": "BU AKŞAM", "saat": saat}, f, ensure_ascii=False)
+
+    console.print(f"[bold cyan][BİLGİ][/bold cyan] albert.json güncellendi: BU AKŞAM {saat}")
+
+    if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
+        video_adi = f"Albert_ve_Cem_{saat.replace(':', '')}.mp4"
+        ae_render_baslat(video_adi, proje_yolu=ALBERT_PROJE_YOLU, kompozisyon=ALBERT_KOMPOZISYON)
+        seo_albert_yaz(saat, video_adi)
+    else:
+        console.print("[dim]Render atlandı.[/dim]")
+
+
 TMY_SEO_SABLON = """{kimden} iddaa tahminleri ve kupon önerileri yayında! Videodaki maçlar ve oranlar.
 
 Oranlar maç saatine kadar değişebilir.
@@ -1015,11 +1075,11 @@ def radio_mocas_menu():
     while True:
         console.print("\n")
         menu = """[bold cyan]1.[/bold cyan] Filtresiz Memleket Havası
-[bold cyan]2.[/bold cyan] Mocas Bey ve Radyosu
-[bold cyan]3.[/bold cyan] Albert ve Cem
+[bold cyan]2.[/bold cyan] Albert ve Cem
+[bold cyan]3.[/bold cyan] Mocas Bey ve Radyosu
 [bold cyan]4.[/bold cyan] Aklımdaki Filmler
 [bold cyan]5.[/bold cyan] Geri"""
-        console.print(Panel(menu, title="[bold yellow]📻 Radio Mocas Duyuru Sistemi", expand=False))
+        console.print(Panel(menu, title=f"[bold yellow]📻 Radio Mocas Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
         secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5"])
         if secim == "5":
@@ -1027,6 +1087,11 @@ def radio_mocas_menu():
         if secim == "1":
             try:
                 memleket_duyuru_yap()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
+        elif secim == "2":
+            try:
+                albert_ve_cem_yap()
             except Exception as e:
                 console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         else:
