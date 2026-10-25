@@ -1098,12 +1098,27 @@ def radio_mocas_menu():
             console.print("[bold yellow]Yapım aşamasında...[/bold yellow]")
 
 
+def banner_yazdir():
+    """Program başlığındaki şık ASCII art Tellal logosunu ve kanal bilgilerini yazdırır."""
+    art = [
+        (r" _____     _ _       _ ", r""),
+        (r"|_   _|___| | | __ _| |", r"  [bold cyan]/uykusuztosba[/bold cyan]   [bold magenta]/radiomocas[/bold magenta]"),
+        (r"  | |/ _ \ | |/ _` | |", f"  [dim]Duyuru Sistemi[/dim] [bold yellow]v{SURUM}[/bold yellow]"),
+        (r"  | |  __/ | | (_| | |", r""),
+        (r"  |_|\___|_|_|\__,_|_|", r""),
+    ]
+    console.print()
+    for sol, sag in art:
+        console.print(f"[bold green]{sol:<24}[/bold green]{sag}")
+    console.print()
+
+
 # =====================================================================
 # ANA MENÜ
 # =====================================================================
 def ana_menu():
     while True:
-        console.print("\n")
+        banner_yazdir()
         menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Çıkış"""
