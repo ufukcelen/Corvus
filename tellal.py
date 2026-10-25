@@ -255,7 +255,7 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None):
     komut = [AERENDER_YOLU, "-project", proje_yolu, "-comp", kompozisyon, "-OMtemplate", CIKTI_SABLONU, "-output", cikis_yolu]
     
     try:
-        process = subprocess.Popen(komut, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        process = subprocess.Popen(komut, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
         
         console.print("[dim]Render Motoru Logları (Sadece İlerleme):[/dim]")
         for satir in iter(process.stdout.readline, ''):
