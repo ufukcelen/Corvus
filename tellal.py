@@ -17,6 +17,7 @@ import random
 import unicodedata
 import glob
 import hashlib
+import platform
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from rich.console import Console
@@ -31,16 +32,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # =====================================================================
 # OTOMATİK GÜNCELLEME (GitHub)
-# Her açılışta repodaki dosyalarla karşılaştırır; farklı/eksik olanları indirir.
-# Script kendisi değiştiyse kendini yenileyip yeniden başlar. Kapatmak için: TELLAL_GUNCELLEME=0
-# Klasörde .git varsa (geliştirici kopyası) hiçbir şey yapmaz, yerel çalışmayı ezmez.
 # =====================================================================
 GITHUB_REPO = "ufukcelen/tellal"
 GITHUB_BRANCH = "main"
-SCRIPT_GITHUB_ADI = "tellal.py"  # repodaki ana script (arkadaşta adı farklı olsa bile bu dosya güncellenir)
+SCRIPT_GITHUB_ADI = "tellal.py"  
 
-# Çalışma sırasında script'in değiştirdiği dosyalar: sadece YOKSA indirilir, varsa asla ezilmez
-# (ör. seçili takım ve logosu).
 SEED_YOLLARI = {
     "FC Kariyer Duyuru/Assets/takımlogo.png",
     "FC Kariyer Duyuru/kariyer_takim.json",
@@ -49,7 +45,7 @@ SEED_YOLLARI = {
     "Tekmaç/Assets/tmyGorsel.png",
     "Tekmaç/Assets/tmy.json",
 }
-SEED_KLASORLERI = ("Bfü Duyuru Projesi/Assets/",)  # sadece bu klasörün DOĞRUDAN altındaki dosyalar (çalışma kopyaları)
+SEED_KLASORLERI = ("Bfü Duyuru Projesi/Assets/",)  
 
 
 def _nfc(metin):
@@ -57,7 +53,6 @@ def _nfc(metin):
 
 
 def _git_blob_sha(veri):
-    """Git'in dosya özeti (blob SHA-1). GitHub ağacındaki 'sha' ile birebir aynı hesaplanır."""
     return hashlib.sha1(b"blob %d\0" % len(veri) + veri).hexdigest()
 
 
@@ -69,7 +64,7 @@ def _seed_mi(yol):
 
 
 def _github_indir(yol, beklenen_sha):
-    url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{quote(yol)}"
+    url = f"[https://raw.githubusercontent.com/](https://raw.githubusercontent.com/){GITHUB_REPO}/{GITHUB_BRANCH}/{quote(yol)}"
     r = requests.get(url, timeout=(5, 60))
     r.raise_for_status()
     if _git_blob_sha(r.content) != beklenen_sha:
@@ -91,7 +86,7 @@ def guncelleme_kontrol():
     try:
         with console.status("[dim]Güncellemeler kontrol ediliyor...[/dim]"):
             r = requests.get(
-                f"https://api.github.com/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
+                f"[https://api.github.com/repos/](https://api.github.com/repos/){GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
                 headers={"Accept": "application/vnd.github+json"}, timeout=8,
             )
         if r.status_code == 403:
@@ -158,7 +153,6 @@ guncelleme_kontrol()
 
 
 def api_anahtari_oku():
-    """API anahtarı, script ile aynı klasördeki api.txt'den okunur (repoya gitmez). Yoksa API_SPORTS_KEY ortam değişkeni denenir."""
     yol = os.path.join(SCRIPT_DIR, "api.txt")
     try:
         with open(yol, encoding="utf-8-sig") as f:
@@ -175,7 +169,6 @@ def api_anahtari_oku():
 
 
 def aerender_bul():
-    """Önce bilinen yol; yoksa kurulu After Effects sürümlerinden en yenisi (Mac ve Windows)."""
     varsayilan = "/Applications/Adobe After Effects 2026/aerender"
     if os.path.exists(varsayilan):
         return varsayilan
@@ -184,17 +177,25 @@ def aerender_bul():
     return adaylar[0] if adaylar else varsayilan
 
 
+def ses_cal():
+    """İşlem bittiğinde script ile aynı klasördeki aeDone.mp3 dosyasını çalar."""
+    ses_dosyasi = os.path.join(SCRIPT_DIR, "aeDone.mp3")
+    if os.path.exists(ses_dosyasi):
+        try:
+            if platform.system() == "Darwin":
+                subprocess.run(["afplay", ses_dosyasi], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif platform.system() == "Windows":
+                os.startfile(ses_dosyasi)
+        except Exception:
+            pass
+
+
 API_KEY = api_anahtari_oku()
 HEADERS = {"x-apisports-key": API_KEY}
 AERENDER_YOLU = aerender_bul()
 KOMPOZISYON_ADI = "mainsahne"
 CIKTI_SABLONU = "ygiido"
 
-# Klasör yapısı:
-#   Youtube Duyuru Otomasyon/                  <- bu script burada durur
-#       Bfü Duyuru Projesi/
-#           bfuDuyuru2027.aep
-#           Assets/                            <- görseller, yayin_saati.json/csv, AE'nin okuduğu dosyalar
 PROJE_ANA_KLASOR = os.path.join(SCRIPT_DIR, "Bfü Duyuru Projesi")
 BASE_DIR = os.path.join(PROJE_ANA_KLASOR, "Assets")
 AE_PROJE_YOLU = os.path.join(PROJE_ANA_KLASOR, "bfuDuyuru2027.aep")
@@ -206,18 +207,16 @@ if not os.path.isdir(BASE_DIR):
 if not os.path.exists(AE_PROJE_YOLU):
     console.print(f"[bold yellow][UYARI][/bold yellow] After Effects projesi bulunamadı: {AE_PROJE_YOLU} (render çalışmaz)")
 
-# Filtresiz Memleket Havası (Radio Mocas) yolları: Youtube Duyuru Otomasyon/Memleket Duyuru/
 MEMLEKET_DIR = os.path.join(SCRIPT_DIR, "Memleket Duyuru")
 MEM_ASSETS_DIR = os.path.join(MEMLEKET_DIR, "assets")
 MEM_SUB_YOLU = os.path.join(MEMLEKET_DIR, "yayınSub.png")
 MEM_JSON_YOLU = os.path.join(MEMLEKET_DIR, "mem_yayin_saati.json")
 MEM_GORSELLER = ["cemBurhan1.png", "cemBurhan2.png", "cemBurhan3.png", "cemBurhan4.png"]
-MEM_PROJE_ADAYLARI = ["memlketDuyAe.aep", "memleketDuyAe.aep"]  # ilki yazdığın isim, ikincisi olası düzgün yazım
+MEM_PROJE_ADAYLARI = ["memlketDuyAe.aep", "memleketDuyAe.aep"] 
 MEM_KOMPOZISYON = "memSahne"
 MEM_VARSAYILAN_SAAT = "22:00"
-MEM_BASLIK = "BU AKŞAM"  # JSON "baslik" alanı: üst satır (AE'de beyaz); "saat" alanı: alt satır (AE'de #FFAF00)
+MEM_BASLIK = "BU AKŞAM" 
 
-# Tek Maçtan Yatanlar yolları: Youtube Duyuru Otomasyon/Tekmaç/
 TMY_DIR = os.path.join(SCRIPT_DIR, "Tekmaç")
 TMY_ASSETS_DIR = os.path.join(TMY_DIR, "Assets")
 TMY_JSON_YOLU = os.path.join(TMY_ASSETS_DIR, "tmy.json")
@@ -226,15 +225,14 @@ TMY_KOMPOZISYON = "tmySahne"
 TMY_VARSAYILAN_SAAT = "21:00"
 TMY_VIDEO_ADI = "tmyDuyuru.mp4"
 
-# FC27 Kariyer yolları: Youtube Duyuru Otomasyon/FC Kariyer Duyuru/
 FC_DIR = os.path.join(SCRIPT_DIR, "FC Kariyer Duyuru")
 FC_ASSETS_DIR = os.path.join(FC_DIR, "Assets")
 FC_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuy.aep")
 FC_KOMPOZISYON = "fc27sahne"
 FC_LOGO_YOLU = os.path.join(FC_ASSETS_DIR, "takımlogo.png")
-FC_TAKIM_DOSYASI = os.path.join(FC_DIR, "kariyer_takim.json")  # seçili takımı hatırlar (yoksa script ilk çalışmada oluşturur)
+FC_TAKIM_DOSYASI = os.path.join(FC_DIR, "kariyer_takim.json") 
 FC_VARSAYILAN_TAKIM = "Feyenoord"
-FC_LOGO_BOYUT = (203, 195)  # AE projesine tam oturan logo kutusu (genişlik, yükseklik)
+FC_LOGO_BOYUT = (203, 195) 
 FC_VIDEO_ADI = "fc27Duyuru.mp4"
 MASAUSTU = os.path.expanduser("~/Desktop")
 
@@ -269,22 +267,21 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None):
         
         if os.path.exists(cikis_yolu):
             console.print(f"\n[bold green][BAŞARILI][/bold green] Video kaydedildi: {cikis_yolu}")
+            ses_cal()
         else:
             console.print(f"\n[bold red][HATA][/bold red] İşlem bitti ama dosya oluşmadı. Şablon veya Comp adı yanlış olabilir.")
             
     except Exception as e:
         console.print(f"\n[bold red][HATA][/bold red] Çökme yaşandı: {e}")
 
-# =====================================================================
-# SEO .TXT ÜRETİMİ (render sonrası Masaüstüne yazılır)
-# =====================================================================
+
 HAFTALIK_SEO_SABLON = """-Bermuda Futbol Uçgeni Canlı Yayın -
 
 Bu Akşam Saat {saat}'{ek} Tosba Youtube, Twitch ve Kick Kanalında.
 
-www.youtube.com/uykusuztosba
-www.kick.com/uykusuztosba
-www.twitch.com/uykusuztosba
+[www.youtube.com/uykusuztosba](https://www.youtube.com/uykusuztosba)
+[www.kick.com/uykusuztosba](https://www.kick.com/uykusuztosba)
+[www.twitch.com/uykusuztosba](https://www.twitch.com/uykusuztosba)
 
 #futbol #gündem #canlıyayın #süperlig #futbolgündemi
 """
@@ -296,11 +293,10 @@ CANLI_SEO_SABLON = """CANLI YAYINDAYIZ! {ev} - {dep} maçı esnasında sohbet ed
 """
 
 MAC_SONU_SEO_SABLON = CANLI_SEO_SABLON.replace("maçı esnasında", "maçı sonrasında")
-assert MAC_SONU_SEO_SABLON != CANLI_SEO_SABLON  # Canlı şablonunun metni değişirse burada fark edilsin
+assert MAC_SONU_SEO_SABLON != CANLI_SEO_SABLON 
 
 
 def saat_eki(saat):
-    """'22:00' -> 'de', '19:00' -> 'da', '21:30' -> 'da' (son okunan sayıya göre)."""
     m = re.fullmatch(r"(\d{1,2}):(\d{2})", saat.strip())
     if not m:
         return "de"
@@ -315,7 +311,6 @@ def saat_eki(saat):
 
 
 def hashtag_yap(metin):
-    """Boşluk ve noktalama silinir, Türkçe harfler korunur: 'Gaziantep FK' -> 'GaziantepFK'."""
     return re.sub(r"[\W_]+", "", metin)
 
 
@@ -324,7 +319,6 @@ def dosya_adi_temizle(ad):
 
 
 def seo_yaz(dosya_adi, icerik, video_adi):
-    """Video gerçekten oluştuysa SEO .txt dosyasını Masaüstüne yazar."""
     if not os.path.exists(os.path.join(MASAUSTU, video_adi)):
         console.print("[bold yellow][UYARI][/bold yellow] Render dosyası oluşmadığı için SEO metni yazılmadı.")
         return
@@ -342,8 +336,6 @@ LIG_MUZIK_ADLARI = {2: "Şampiyonlar Ligi", 3: "Europa Ligi", 848: "Konferans Li
 
 
 def planlama_saati(saat):
-    """Yayın saatinden 4 saat önce. '21:00' -> ('17:00', False); '02:00' -> ('22:00', True = bir önceki gün).
-    Saat okunamazsa (None, False) döner."""
     try:
         t = datetime.strptime(saat.strip(), "%H:%M")
     except ValueError:
@@ -353,7 +345,6 @@ def planlama_saati(saat):
 
 
 def ekstra_not(saat, muzik_notu):
-    """SEO metninin altına, 3 boş satır bırakıp eklenen yapım notu."""
     plan, onceki_gun = planlama_saati(saat)
     if plan:
         gun = ", bir önceki gün" if onceki_gun else ""
@@ -385,19 +376,12 @@ def seo_canli_yaz(mac_verisi, saat, video_adi, mac_sonu=False):
     seo_yaz(dosya, icerik, video_adi)
 
 
-# =====================================================================
-# LOGO / PNG YARDIMCILARI
-# AE'nin okuduğu görseller gerçek PNG olmak zorunda. API bazen PNG olmayan
-# (WebP, JPEG, hata sayfası...) içerik döndürüyor; bu render'ı çökertiyor.
-# =====================================================================
 PNG_IMZA = b"\x89PNG\r\n\x1a\n"
-JENERIK_LOGO = "boş.png"  # logo indirilemezse kullanılır (Assets klasöründe)
+JENERIK_LOGO = "boş.png"  
 BUGUN_YAZISI = "Bugün ise Enter a bas."
 
 
 def logo_indir(url, hedef):
-    """Logoyu indirir. PNG değilse Pillow ile PNG'ye çevirir; çevrilemezse hata fırlatır.
-    Geçersiz içerik ASLA hedef dosyaya yazılmaz."""
     r = requests.get(url, timeout=10)
     r.raise_for_status()
     veri = r.content
@@ -424,7 +408,6 @@ def logo_indir(url, hedef):
 
 
 def logo_hazirla(url, hedef, etiket):
-    """Logoyu indirmeyi dener. Başarısız olursa süreci kesmez, jenerik logoyu koyar."""
     try:
         if not url:
             raise ValueError("logo adresi yok")
@@ -445,7 +428,6 @@ def png_mi(dosya):
 
 
 def png_dogrula(dosyalar):
-    """Render öncesi AE'nin okuduğu görsellerin PNG olduğunu kontrol eder, değilse çevirir. Sonucu her zaman yazar."""
     sorunlu = 0
     for ad in dosyalar:
         hedef = os.path.join(BASE_DIR, ad)
@@ -471,24 +453,17 @@ def png_dogrula(dosyalar):
         console.print(f"[bold green][KONTROL][/bold green] {len(dosyalar)} görselin hepsi geçerli PNG.")
 
 
-# =====================================================================
-# API YARDIMCILARI
-# Ücretsiz planda sadece bu sezonlar için lig+sezon sorgusu çalışır.
-# Plan yükseltilirse UCRETSIZ_SEZONLAR'ı genişlet (ör. range(2022, 2100)).
-# =====================================================================
 UCRETSIZ_SEZONLAR = range(2022, 2025)
 HEPSI_LIG_IDLERI = [2, 3, 848, 203, 5]
 
 
 def sezon_hesapla(tarih):
-    """Ocak-Haziran maçları bir önceki yılın sezonuna aittir (2027-03-10 -> sezon 2026)."""
     yil, ay = int(tarih[:4]), int(tarih[5:7])
     return str(yil if ay >= 7 else yil - 1)
 
 
 def api_maclar(params):
-    """Fixtures çeker. API hata verirse sessizce geçmez, ekrana yazar."""
-    r = requests.get("https://v3.football.api-sports.io/fixtures", headers=HEADERS, params=params, timeout=15)
+    r = requests.get("[https://v3.football.api-sports.io/fixtures](https://v3.football.api-sports.io/fixtures)", headers=HEADERS, params=params, timeout=15)
     j = r.json()
     if j.get("errors"):
         console.print(f"[bold red][API HATASI][/bold red] {escape(str(j['errors']))}")
@@ -518,7 +493,6 @@ def uykusuz_tosba_menu():
             if secim == "1":
                 saat = Prompt.ask("[bold cyan]Yayın Saat kaçta? (Örn: 21:00)[/bold cyan]")
             
-                # Hem JSON hem CSV yazılır (AE hangisini okuyorsa o güncellenmiş olur)
                 json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
                 with open(json_yolu, "w", encoding="utf-8") as f:
                     json.dump({"baslik": f"Bu Aksam {saat}"}, f, ensure_ascii=False)
@@ -542,7 +516,7 @@ def uykusuz_tosba_menu():
                     console.print("[dim]Render atlandı.[/dim]")
 
             elif secim in ("2", "3"):
-                mac_sonu = secim == "3"  # 3 = Maç Sonu: akış aynı, sadece konu görseli / dosya adları farklı
+                mac_sonu = secim == "3" 
                 tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
                 if tarih_girdisi.strip() in ("", BUGUN_YAZISI) or tarih_girdisi.strip().lower() in ("bugün", "bugun"):
                     tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
@@ -592,7 +566,6 @@ def uykusuz_tosba_menu():
                     sira_to_id[str(idx)] = f_id
                     id_list.append(f_id)
                 
-                    # UTC Saati Türkiye Saatine çevirip formatlama
                     utc_time = datetime.strptime(m['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z")
                     tr_time = utc_time.astimezone(timezone(timedelta(hours=3)))
                     mac_saati_str = tr_time.strftime("%H:%M")
@@ -618,7 +591,6 @@ def uykusuz_tosba_menu():
                 tr_time = datetime.strptime(mac_verisi['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z").astimezone(timezone(timedelta(hours=3)))
 
                 if mac_sonu:
-                    # Maç Sonu: otomatik saat önerisi yok, saati sen girersin (HH:MM)
                     nihai_saat = ""
                     while not re.fullmatch(r"\d{1,2}:\d{2}", nihai_saat):
                         nihai_saat = Prompt.ask("[bold cyan]Yayın Saati kaçta? (Örn: 23:45)[/bold cyan]").strip()
@@ -628,7 +600,6 @@ def uykusuz_tosba_menu():
                     yayin_saati_oto = (tr_time - timedelta(minutes=15)).strftime("%H:%M")
                     nihai_saat = Prompt.ask(f"[bold cyan]Yayın Saati ({yayin_saati_oto} olarak hesaplandı). Farklı bir saat girmek ister misiniz?[/bold cyan] (Boş bırakırsanız oto. kullanılır)", default=yayin_saati_oto)
             
-                # Hem JSON hem CSV güncellenir
                 json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
                 with open(json_yolu, "w", encoding="utf-8") as f:
                     json.dump({"baslik": f"Bu Aksam {nihai_saat}"}, f, ensure_ascii=False)
@@ -668,7 +639,6 @@ def uykusuz_tosba_menu():
 
 
 def saat_oner_al(varsayilan):
-    """Bir saat önerir (Canlı Maç Sohbeti'ndeki gibi). Boş bırakırsan öneri, yazarsan SS:DD biçiminde o saat."""
     while True:
         saat = Prompt.ask(
             f"[bold cyan]Yayın Saati ({varsayilan} olarak önerildi). Farklı bir saat girmek ister misiniz?[/bold cyan] (Boş bırakırsanız {varsayilan} kullanılır)",
@@ -687,9 +657,9 @@ MEM_SEO_SABLON = """“Yok artık!” dedirten anları, sokağın filtresiz ger�
 
 “Bu olsa olsa ancak bizim memlekette olur” dediğimiz ne varsa, bu akşam {saat} YouTube, Kick ve Twitch ortak yayınında masada!
 
-youtube.com/radiomocas
-kick.com/uykusuztosba
-twitch.com/radiomocas
+[youtube.com/radiomocas](https://youtube.com/radiomocas)
+[kick.com/uykusuztosba](https://kick.com/uykusuztosba)
+[twitch.com/radiomocas](https://twitch.com/radiomocas)
 
 #FiltresizMemleketHavası #kaos #sohbet #mizah #CanlıYayın
 """
@@ -710,7 +680,6 @@ def seo_memleket_yaz(saat, video_adi):
 def memleket_duyuru_yap():
     saat = mem_saat_al()
 
-    # Her seferinde cemBurhan1-4 arasından rastgele biri yayınSub.png'nin yerine konur
     mevcut = [g for g in MEM_GORSELLER if os.path.exists(os.path.join(MEM_ASSETS_DIR, g))]
     if not mevcut:
         console.print(f"[bold red][HATA][/bold red] {MEM_ASSETS_DIR} içinde cemBurhan1-4.png bulunamadı.")
@@ -722,7 +691,6 @@ def memleket_duyuru_yap():
             console.print(f"[bold yellow][UYARI][/bold yellow] {secilen} gerçek bir PNG değil, render hata verebilir.")
     console.print(f"[bold cyan][BİLGİ][/bold cyan] Seçilen görsel: {secilen} -> yayınSub.png")
 
-    # JSON'a iki ayrı alan yazılır: AE'de iki text layer (üst satır beyaz, saat #FFAF00)
     with open(MEM_JSON_YOLU, "w", encoding="utf-8") as f:
         json.dump({"baslik": MEM_BASLIK, "saat": saat}, f, ensure_ascii=False)
 
@@ -749,13 +717,11 @@ Oranlar maç saatine kadar değişebilir.
 
 
 def hashtag_yap(takim):
-    """'Manchester City' -> '#ManchesterCity' (boşluk ve noktalama silinir, Türkçe harfler korunur)."""
     temiz = re.sub(r"[\W_]", "", takim)
     return f"#{temiz}" if temiz else ""
 
 
 def tmy_proje_bul():
-    """Tekmaç klasöründeki After Effects projesini bulur (adı sabit verilmediği için .aep aranır)."""
     try:
         adaylar = sorted(f for f in os.listdir(TMY_DIR) if f.lower().endswith(".aep"))
     except FileNotFoundError:
@@ -769,7 +735,6 @@ def tmy_proje_bul():
 
 
 def tmy_json_guncelle(saat):
-    """tmy.json'da sadece saat değişir: 'Bu Aksam 21:00' -> 'Bu Aksam 23:30'. Dosya yoksa/bozuksa baştan yazılır."""
     try:
         with open(TMY_JSON_YOLU, encoding="utf-8") as f:
             veri = json.load(f)
@@ -855,7 +820,6 @@ FC27_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın başladı!
 
 
 def ascii_norm(metin):
-    """'Fenerbahçe' -> 'fenerbahce' (API aramasında Türkçe harf sorun çıkarmasın diye)."""
     metin = metin.replace("İ", "I").replace("ı", "i")
     metin = unicodedata.normalize("NFKD", metin)
     metin = "".join(c for c in metin if not unicodedata.combining(c))
@@ -863,7 +827,6 @@ def ascii_norm(metin):
 
 
 def fc_takim_oku():
-    """Kayıtlı takımı döner. Dosya yoksa (ilk kullanım) Feyenoord ile bir kereliğine oluşturur."""
     try:
         with open(FC_TAKIM_DOSYASI, encoding="utf-8") as f:
             ad = json.load(f).get("takim")
@@ -881,12 +844,11 @@ def fc_takim_yaz(ad):
 
 
 def fc_takim_ara(giris):
-    """Girilen adın ilk 3-4 harfiyle API'de takım arar, en iyi eşleşmeleri (en fazla 6) döner."""
     tam = ascii_norm(giris)
     onek = tam[:4].strip()
     if len(onek) < 3:
         return []
-    r = requests.get("https://v3.football.api-sports.io/teams", headers=HEADERS, params={"search": onek}, timeout=15)
+    r = requests.get("[https://v3.football.api-sports.io/teams](https://v3.football.api-sports.io/teams)", headers=HEADERS, params={"search": onek}, timeout=15)
     j = r.json()
     if j.get("errors"):
         console.print(f"[bold red][API HATASI][/bold red] {escape(str(j['errors']))}")
@@ -904,7 +866,6 @@ def fc_takim_ara(giris):
 
 
 def fc_takim_sec():
-    """Kullanıcıdan takım adı ister, API'den bulup numarayla seçtirir. Boş bırakırsa vazgeçer (None)."""
     while True:
         giris = Prompt.ask("[bold cyan]Hangi takımın kariyerini yapıyor?[/bold cyan] (Boş bırakırsan vazgeçilir)", default="", show_default=False).strip()
         if not giris:
@@ -925,7 +886,6 @@ def fc_takim_sec():
 
 
 def fc_logo_hazirla(url):
-    """Logoyu indirir, oranını bozmadan 203x195 şeffaf kutunun ortasına sığdırıp takımlogo.png olarak kaydeder."""
     if not url:
         raise ValueError("API logo adresi vermedi")
     try:
