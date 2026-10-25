@@ -1,0 +1,8 @@
+api.txt
+__pycache__/
+*.pyc
+.DS_Store
+*Auto-Save*/
+*.tellal_indir
+*Logs/
+old.py
