@@ -64,7 +64,7 @@ def _seed_mi(yol):
 
 
 def _github_indir(yol, beklenen_sha):
-    url = f"[https://raw.githubusercontent.com/](https://raw.githubusercontent.com/){GITHUB_REPO}/{GITHUB_BRANCH}/{quote(yol)}"
+    url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/{GITHUB_BRANCH}/{quote(yol)}"
     r = requests.get(url, timeout=(5, 60))
     r.raise_for_status()
     if _git_blob_sha(r.content) != beklenen_sha:
@@ -86,7 +86,7 @@ def guncelleme_kontrol():
     try:
         with console.status("[dim]Güncellemeler kontrol ediliyor...[/dim]"):
             r = requests.get(
-               f"https://api.github.com/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
+                f"https://api.github.com/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
                 headers={"Accept": "application/vnd.github+json"}, timeout=8,
             )
         if r.status_code == 403:
@@ -279,9 +279,9 @@ HAFTALIK_SEO_SABLON = """-Bermuda Futbol Uçgeni Canlı Yayın -
 
 Bu Akşam Saat {saat}'{ek} Tosba Youtube, Twitch ve Kick Kanalında.
 
-[www.youtube.com/uykusuztosba](https://www.youtube.com/uykusuztosba)
-[www.kick.com/uykusuztosba](https://www.kick.com/uykusuztosba)
-[www.twitch.com/uykusuztosba](https://www.twitch.com/uykusuztosba)
+www.youtube.com/uykusuztosba
+www.kick.com/uykusuztosba
+www.twitch.com/uykusuztosba
 
 #futbol #gündem #canlıyayın #süperlig #futbolgündemi
 """
@@ -463,7 +463,7 @@ def sezon_hesapla(tarih):
 
 
 def api_maclar(params):
-    r = requests.get("[https://v3.football.api-sports.io/fixtures](https://v3.football.api-sports.io/fixtures)", headers=HEADERS, params=params, timeout=15)
+    r = requests.get("https://v3.football.api-sports.io/fixtures", headers=HEADERS, params=params, timeout=15)
     j = r.json()
     if j.get("errors"):
         console.print(f"[bold red][API HATASI][/bold red] {escape(str(j['errors']))}")
@@ -657,9 +657,9 @@ MEM_SEO_SABLON = """“Yok artık!” dedirten anları, sokağın filtresiz ger�
 
 “Bu olsa olsa ancak bizim memlekette olur” dediğimiz ne varsa, bu akşam {saat} YouTube, Kick ve Twitch ortak yayınında masada!
 
-[youtube.com/radiomocas](https://youtube.com/radiomocas)
-[kick.com/uykusuztosba](https://kick.com/uykusuztosba)
-[twitch.com/radiomocas](https://twitch.com/radiomocas)
+youtube.com/radiomocas
+kick.com/uykusuztosba
+twitch.com/radiomocas
 
 #FiltresizMemleketHavası #kaos #sohbet #mizah #CanlıYayın
 """
@@ -848,7 +848,7 @@ def fc_takim_ara(giris):
     onek = tam[:4].strip()
     if len(onek) < 3:
         return []
-    r = requests.get("[https://v3.football.api-sports.io/teams](https://v3.football.api-sports.io/teams)", headers=HEADERS, params={"search": onek}, timeout=15)
+    r = requests.get("https://v3.football.api-sports.io/teams", headers=HEADERS, params={"search": onek}, timeout=15)
     j = r.json()
     if j.get("errors"):
         console.print(f"[bold red][API HATASI][/bold red] {escape(str(j['errors']))}")
