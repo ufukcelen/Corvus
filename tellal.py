@@ -287,19 +287,59 @@ FC_LOGO_BOYUT = (203, 195)
 FC_VIDEO_ADI = "fc27Duyuru.mp4"
 MASAUSTU = os.path.expanduser("~/Desktop")
 
-def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None):
+TURKCE_AYLAR = {
+    1: "Ocak", 2: "Şubat", 3: "Mart", 4: "Nisan", 5: "Mayıs", 6: "Haziran",
+    7: "Temmuz", 8: "Ağustos", 9: "Eylül", 10: "Ekim", 11: "Kasım", 12: "Aralık"
+}
+
+
+def cikti_klasoru_al(program_adi, tarih=None):
+    """Masaüstünde '26 Ekim_Program Adı' formatında klasör oluşturup yolunu döndürür."""
+    if tarih:
+        try:
+            dt = datetime.strptime(tarih[:10], "%Y-%m-%d")
+        except Exception:
+            dt = datetime.now()
+    else:
+        dt = datetime.now()
+
+    gun = dt.strftime("%d")
+    ay = TURKCE_AYLAR.get(dt.month, dt.strftime("%B"))
+    klasor_adi = f"{gun} {ay}_{program_adi}"
+    hedef_klasor = os.path.join(MASAUSTU, klasor_adi)
+    os.makedirs(hedef_klasor, exist_ok=True)
+    return hedef_klasor
+
+
+def masaustu_app_olustur():
+    """macOS ortamında Masaüstüne çift tıklanabilir Tellal.app uygulamasını oluşturur."""
+    if platform.system() != "Darwin":
+        return
+    app_yolu = os.path.join(MASAUSTU, "Tellal.app")
+    if os.path.exists(app_yolu):
+        return
+    try:
+        script = f'tell application "Terminal" to do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"'
+        subprocess.run(["osacompile", "-o", app_yolu, "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
+def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None, hedef_klasor=None):
     proje_yolu = proje_yolu or AE_PROJE_YOLU
     kompozisyon = kompozisyon or KOMPOZISYON_ADI
     if not os.path.exists(AERENDER_YOLU):
         console.print(f"\n[bold red][CRITICAL HATA][/bold red] aerender motoru bulunamadı! Yol: {AERENDER_YOLU}")
         return
 
-    cikis_yolu = os.path.join(MASAUSTU, cikis_adi)
+    hedef_dizin = hedef_klasor or MASAUSTU
+    os.makedirs(hedef_dizin, exist_ok=True)
+    cikis_yolu = os.path.join(hedef_dizin, cikis_adi)
     if os.path.exists(cikis_yolu):
         try:
             os.remove(cikis_yolu)
         except Exception as e:
-            console.print(f"[bold yellow][UYARI][/bold yellow] Masaüstündeki eski video silinemedi ({e}). Oynatıcıda açıksa kapatın.")
+            console.print(f"[bold yellow][UYARI][/bold yellow] Eski video silinemedi ({e}). Oynatıcıda açıksa kapatın.")
 
     console.print(Panel(f"[cyan]Proje:[/cyan] {os.path.basename(proje_yolu)}\n[cyan]Comp:[/cyan] {kompozisyon}\n[cyan]Hedef:[/cyan] {cikis_yolu}", title="[bold yellow]Render Başlatılıyor", expand=False))
     
@@ -378,11 +418,13 @@ def dosya_adi_temizle(ad):
     return re.sub(r'[\\/:*?"<>|]', "-", ad)
 
 
-def seo_yaz(dosya_adi, icerik, video_adi=None):
-    if video_adi and not os.path.exists(os.path.join(MASAUSTU, video_adi)):
-        console.print(f"[bold yellow][UYARI][/bold yellow] {video_adi} masaüstünde bulunamadı ancak SEO metni yine de kaydediliyor.")
+def seo_yaz(dosya_adi, icerik, video_adi=None, hedef_klasor=None):
+    hedef_dizin = hedef_klasor or MASAUSTU
+    os.makedirs(hedef_dizin, exist_ok=True)
+    if video_adi and not os.path.exists(os.path.join(hedef_dizin, video_adi)):
+        console.print(f"[bold yellow][UYARI][/bold yellow] {video_adi} bulunamadı ancak SEO metni yine de kaydediliyor.")
     try:
-        yol = os.path.join(MASAUSTU, dosya_adi)
+        yol = os.path.join(hedef_dizin, dosya_adi)
         with open(yol, "w", encoding="utf-8") as f:
             f.write(icerik)
         console.print(f"[bold green][BAŞARILI][/bold green] SEO metni kaydedildi: {yol}")
@@ -413,13 +455,13 @@ def ekstra_not(saat, muzik_notu):
     return f"\n\n\n{planla}\n\n{ETIKET_NOTU}\n\n-Videoya {muzik_notu}\n"
 
 
-def seo_haftalik_yaz(saat, video_adi):
+def seo_haftalik_yaz(saat, video_adi, hedef_klasor=None):
     icerik = HAFTALIK_SEO_SABLON.format(saat=saat, ek=saat_eki(saat))
     icerik += ekstra_not(saat, "jenerik bir futbol veya trend bir müziği koy")
-    seo_yaz("seoHaftalıkProgram.txt", icerik, video_adi)
+    seo_yaz("seoHaftalıkProgram.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
 
 
-def seo_canli_yaz(mac_verisi, saat, video_adi, mac_sonu=False):
+def seo_canli_yaz(mac_verisi, saat, video_adi, mac_sonu=False, hedef_klasor=None):
     ev = mac_verisi['teams']['home']['name']
     dep = mac_verisi['teams']['away']['name']
     lig = mac_verisi['league']['name']
@@ -432,7 +474,7 @@ def seo_canli_yaz(mac_verisi, saat, video_adi, mac_sonu=False):
     icerik += ekstra_not(saat, f"{lig_adi} müziği koy")
     onek = "seoMaçSonu" if mac_sonu else "seoCanlısohbet"
     dosya = dosya_adi_temizle(f"{onek} {ev}_{dep}.txt")
-    seo_yaz(dosya, icerik, video_adi)
+    seo_yaz(dosya, icerik, video_adi, hedef_klasor=hedef_klasor)
 
 
 PNG_IMZA = b"\x89PNG\r\n\x1a\n"
@@ -569,9 +611,10 @@ def uykusuz_tosba_menu():
                 shutil.copyfile(os.path.join(BASE_DIR, "boş.png"), os.path.join(BASE_DIR, "depTakım.png"))
                 shutil.copyfile(os.path.join(BASE_DIR, "logo.png"), os.path.join(BASE_DIR, "VS.png"))
             
+                klasor = cikti_klasoru_al("Haftalık Program")
                 if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
-                    ae_render_baslat("Haftalik_Program_Duyurusu.mp4")
-                    seo_haftalik_yaz(saat, "Haftalik_Program_Duyurusu.mp4")
+                    ae_render_baslat("Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
+                    seo_haftalik_yaz(saat, "Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
                 else:
                     console.print("[dim]Render atlandı.[/dim]")
 
@@ -684,10 +727,12 @@ def uykusuz_tosba_menu():
                 logo_hazirla(mac_verisi['teams']['away'].get('logo'), os.path.join(BASE_DIR, "depTakım.png"), "Deplasman")
                 png_dogrula(["cerceve.png", "arkaPlan.png", "konu.png", "kafa.png", "VS.png", "evTakım.png", "depTakım.png"])
 
+                prog_adi = "Maç Sonu" if mac_sonu else "Canlı Maç Sohbeti"
+                klasor = cikti_klasoru_al(prog_adi, tarih=tarih)
                 if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
                     video_adi = f"{'Mac_Sonu' if mac_sonu else 'Mac_Sohbeti'}_{nihai_saat.replace(':', '')}.mp4"
-                    ae_render_baslat(video_adi)
-                    seo_canli_yaz(mac_verisi, nihai_saat, video_adi, mac_sonu=mac_sonu)
+                    ae_render_baslat(video_adi, hedef_klasor=klasor)
+                    seo_canli_yaz(mac_verisi, nihai_saat, video_adi, mac_sonu=mac_sonu, hedef_klasor=klasor)
                 else:
                     console.print("[dim]Render atlandı.[/dim]")
 
@@ -769,10 +814,11 @@ def memleket_duyuru_yap():
         console.print(f"[bold red][HATA][/bold red] After Effects projesi bulunamadı: {os.path.join(MEMLEKET_DIR, MEM_PROJE_ADAYLARI[0])}")
         return
 
+    klasor = cikti_klasoru_al("Memleket Havası")
     if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
         video_adi = f"Memleket_Havasi_{saat.replace(':', '')}.mp4"
-        ae_render_baslat(video_adi, proje_yolu=proje, kompozisyon=MEM_KOMPOZISYON)
-        seo_memleket_yaz(saat, video_adi)
+        ae_render_baslat(video_adi, proje_yolu=proje, kompozisyon=MEM_KOMPOZISYON, hedef_klasor=klasor)
+        seo_memleket_yaz(saat, video_adi, hedef_klasor=klasor)
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
@@ -792,7 +838,7 @@ video müzikli ama istersen müziği iptal edip cemin müziklerinden birini koya
 """
 
 
-def seo_albert_yaz(saat, video_adi):
+def seo_albert_yaz(saat, video_adi, hedef_klasor=None):
     plan, onceki_gun = planlama_saati(saat)
     if plan:
         gun = " (bir önceki gün) " if onceki_gun else " "
@@ -800,7 +846,7 @@ def seo_albert_yaz(saat, video_adi):
     else:
         plan_metni = "yayın saatinden 4 saat önce "
     icerik = ALBERT_SEO_SABLON.format(planla=plan_metni)
-    seo_yaz("albertSeo.txt", icerik, video_adi)
+    seo_yaz("albertSeo.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
 
 
 def albert_ve_cem_yap():
@@ -818,10 +864,11 @@ def albert_ve_cem_yap():
 
     console.print(f"[bold cyan][BİLGİ][/bold cyan] albert.json güncellendi: BU AKŞAM {saat}")
 
+    klasor = cikti_klasoru_al("Albert ve Cem")
     if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
         video_adi = f"Albert_ve_Cem_{saat.replace(':', '')}.mp4"
-        ae_render_baslat(video_adi, proje_yolu=ALBERT_PROJE_YOLU, kompozisyon=ALBERT_KOMPOZISYON)
-        seo_albert_yaz(saat, video_adi)
+        ae_render_baslat(video_adi, proje_yolu=ALBERT_PROJE_YOLU, kompozisyon=ALBERT_KOMPOZISYON, hedef_klasor=klasor)
+        seo_albert_yaz(saat, video_adi, hedef_klasor=klasor)
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
@@ -880,7 +927,7 @@ def takim_hashtagleri_al():
     return etiketler
 
 
-def seo_tmy_yaz(saat, kayhan_var, etiketler, video_adi):
+def seo_tmy_yaz(saat, kayhan_var, etiketler, video_adi, hedef_klasor=None):
     kimden = "Cem Yıldırım ve Kayhan Alkay'dan" if kayhan_var else "Cem Yıldırım'dan"
     icerik = TMY_SEO_SABLON.format(kimden=kimden, etiketler=" ".join(etiketler))
     plan, onceki_gun = planlama_saati(saat)
@@ -891,7 +938,7 @@ def seo_tmy_yaz(saat, kayhan_var, etiketler, video_adi):
         paylas = "-Yayın saatinden 4 saat önce paylaş"
     etiket_notu = "-Kayhan ve Cem'i etiketle" if kayhan_var else "-Cem'i etiketle"
     icerik += f"\n\n\n{etiket_notu}\n\n{paylas}\n\n-Videoya trend, enerjik bir müzik koy\n"
-    seo_yaz("tmyDuyuru.txt", icerik, video_adi)
+    seo_yaz("tmyDuyuru.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
 
 
 def tek_mac_yatanlar_yap():
@@ -920,9 +967,10 @@ def tek_mac_yatanlar_yap():
     etiketler = takim_hashtagleri_al()
     tmy_json_guncelle(saat)
 
+    klasor = cikti_klasoru_al("Tek Maçtan Yatanlar")
     if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
-        ae_render_baslat(TMY_VIDEO_ADI, proje_yolu=proje, kompozisyon=TMY_KOMPOZISYON)
-        seo_tmy_yaz(saat, kayhan_var, etiketler, TMY_VIDEO_ADI)
+        ae_render_baslat(TMY_VIDEO_ADI, proje_yolu=proje, kompozisyon=TMY_KOMPOZISYON, hedef_klasor=klasor)
+        seo_tmy_yaz(saat, kayhan_var, etiketler, TMY_VIDEO_ADI, hedef_klasor=klasor)
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
@@ -1023,16 +1071,10 @@ def fc_logo_hazirla(url):
     tuval.save(FC_LOGO_YOLU, format="PNG")
 
 
-def fc27_txt_yaz(takim):
+def fc27_txt_yaz(takim, hedef_klasor=None):
     icerik = FC27_SEO_SABLON.format(takim=takim, etiket=hashtag_yap(takim))
     icerik += "\n\n\n-Cem'i etiketle\n\n-FC27 soundtracklerinden bir müzik seç\n"
-    try:
-        yol = os.path.join(MASAUSTU, "fc27Duyuru.txt")
-        with open(yol, "w", encoding="utf-8") as f:
-            f.write(icerik)
-        console.print(f"[bold green][BAŞARILI][/bold green] SEO metni kaydedildi: {yol}")
-    except Exception as e:
-        console.print(f"[bold red][HATA][/bold red] SEO metni yazılamadı: {e}")
+    seo_yaz("fc27Duyuru.txt", icerik, hedef_klasor=hedef_klasor)
 
 
 def fc27_kariyer_yap():
@@ -1063,10 +1105,11 @@ def fc27_kariyer_yap():
             console.print(f"[bold red][HATA][/bold red] Logo indirilemedi/işlenemedi: {e}")
             return
 
+    klasor = cikti_klasoru_al("FC27 Kariyer")
     console.print("[bold yellow][NOT][/bold yellow] Bu yayın duyurusu, yayın başladıktan sonra yapılır.")
     if Confirm.ask("[bold yellow]Render başlatılsın mı?[/bold yellow]"):
-        fc27_txt_yaz(takim)
-        ae_render_baslat(FC_VIDEO_ADI, proje_yolu=FC_PROJE_YOLU, kompozisyon=FC_KOMPOZISYON)
+        fc27_txt_yaz(takim, hedef_klasor=klasor)
+        ae_render_baslat(FC_VIDEO_ADI, proje_yolu=FC_PROJE_YOLU, kompozisyon=FC_KOMPOZISYON, hedef_klasor=klasor)
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
@@ -1136,6 +1179,7 @@ def ana_menu():
 
 
 if __name__ == "__main__":
+    masaustu_app_olustur()
     yenilikleri_goster()
     ana_menu()
 
