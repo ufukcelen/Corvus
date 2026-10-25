@@ -650,7 +650,8 @@ def uykusuz_tosba_menu():
             console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
 
 
-def saat_al(mesaj="Yayın Saati kaçta? (Örn: 21:00)", varsayilan=None):
+def saat_al(mesaj="Yayın Saati kaçta? (Örn: 21:00)", varsayilan=None, default=None):
+    varsayilan = default if default is not None else varsayilan
     while True:
         if varsayilan:
             saat = Prompt.ask(
