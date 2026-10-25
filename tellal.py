@@ -86,7 +86,7 @@ def guncelleme_kontrol():
     try:
         with console.status("[dim]Güncellemeler kontrol ediliyor...[/dim]"):
             r = requests.get(
-                f"[https://api.github.com/repos/](https://api.github.com/repos/){GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
+               f"https://api.github.com/repos/{GITHUB_REPO}/git/trees/{GITHUB_BRANCH}?recursive=1",
                 headers={"Accept": "application/vnd.github+json"}, timeout=8,
             )
         if r.status_code == 403:
