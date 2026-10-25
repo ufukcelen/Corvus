@@ -184,7 +184,7 @@ def ses_cal():
     if os.path.exists(ses_dosyasi):
         try:
             if platform.system() == "Darwin":
-                subprocess.run(["afplay", ses_dosyasi], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.Popen(["afplay", ses_dosyasi], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif platform.system() == "Windows":
                 os.startfile(ses_dosyasi)
         except Exception:
@@ -246,8 +246,10 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None):
 
     cikis_yolu = os.path.join(MASAUSTU, cikis_adi)
     if os.path.exists(cikis_yolu):
-        try: os.remove(cikis_yolu)
-        except: pass
+        try:
+            os.remove(cikis_yolu)
+        except Exception as e:
+            console.print(f"[bold yellow][UYARI][/bold yellow] Masaüstündeki eski video silinemedi ({e}). Oynatıcıda açıksa kapatın.")
 
     console.print(Panel(f"[cyan]Proje:[/cyan] {os.path.basename(proje_yolu)}\n[cyan]Comp:[/cyan] {kompozisyon}\n[cyan]Hedef:[/cyan] {cikis_yolu}", title="[bold yellow]Render Başlatılıyor", expand=False))
     
@@ -311,18 +313,24 @@ def saat_eki(saat):
     return ("t" if sert else "d") + ("e" if son_unlu in "eiöü" else "a")
 
 
-def hashtag_yap(metin):
+def hashtag_temizle(metin):
+    """Metni hashtag uyumlu temizler (diyez olmadan)."""
     return re.sub(r"[\W_]+", "", metin)
+
+
+def hashtag_yap(metin):
+    """Metni başına # ekleyerek hashtag yapar."""
+    temiz = hashtag_temizle(metin)
+    return f"#{temiz}" if temiz else ""
 
 
 def dosya_adi_temizle(ad):
     return re.sub(r'[\\/:*?"<>|]', "-", ad)
 
 
-def seo_yaz(dosya_adi, icerik, video_adi):
-    if not os.path.exists(os.path.join(MASAUSTU, video_adi)):
-        console.print("[bold yellow][UYARI][/bold yellow] Render dosyası oluşmadığı için SEO metni yazılmadı.")
-        return
+def seo_yaz(dosya_adi, icerik, video_adi=None):
+    if video_adi and not os.path.exists(os.path.join(MASAUSTU, video_adi)):
+        console.print(f"[bold yellow][UYARI][/bold yellow] {video_adi} masaüstünde bulunamadı ancak SEO metni yine de kaydediliyor.")
     try:
         yol = os.path.join(MASAUSTU, dosya_adi)
         with open(yol, "w", encoding="utf-8") as f:
@@ -368,7 +376,7 @@ def seo_canli_yaz(mac_verisi, saat, video_adi, mac_sonu=False):
     sablon = MAC_SONU_SEO_SABLON if mac_sonu else CANLI_SEO_SABLON
     icerik = sablon.format(
         ev=ev, dep=dep, saat=saat,
-        ev_tag=hashtag_yap(ev), dep_tag=hashtag_yap(dep), lig_tag=hashtag_yap(lig),
+        ev_tag=hashtag_temizle(ev), dep_tag=hashtag_temizle(dep), lig_tag=hashtag_temizle(lig),
     )
     lig_adi = LIG_MUZIK_ADLARI.get(mac_verisi['league']['id'], lig)
     icerik += ekstra_not(saat, f"{lig_adi} müziği koy")
@@ -440,8 +448,9 @@ def png_dogrula(dosyalar):
             continue
         try:
             from PIL import Image
-            img = Image.open(hedef).convert("RGBA")
-            img.save(hedef, format="PNG")
+            with Image.open(hedef) as img:
+                donusmus = img.convert("RGBA")
+            donusmus.save(hedef, format="PNG")
             console.print(f"[bold cyan][BİLGİ][/bold cyan] {ad} PNG değildi, PNG'ye çevrildi.")
         except ImportError:
             console.print(f"[bold yellow][UYARI][/bold yellow] {ad} PNG değil ve Pillow yüklü değil (pip3 install pillow). Render hata verebilir.")
@@ -492,7 +501,7 @@ def uykusuz_tosba_menu():
 
         try:
             if secim == "1":
-                saat = Prompt.ask("[bold cyan]Yayın Saat kaçta? (Örn: 21:00)[/bold cyan]")
+                saat = saat_al("Yayın Saat kaçta? (Örn: 21:00)")
             
                 json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
                 with open(json_yolu, "w", encoding="utf-8") as f:
@@ -518,11 +527,17 @@ def uykusuz_tosba_menu():
 
             elif secim in ("2", "3"):
                 mac_sonu = secim == "3" 
-                tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
-                if tarih_girdisi.strip() in ("", BUGUN_YAZISI) or tarih_girdisi.strip().lower() in ("bugün", "bugun"):
-                    tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
-                else:
-                    tarih = tarih_girdisi
+                while True:
+                    tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
+                    girdi_temiz = tarih_girdisi.strip().lower()
+                    if girdi_temiz in ("", BUGUN_YAZISI.lower(), "bugün", "bugun"):
+                        tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
+                        break
+                    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", tarih_girdisi.strip()):
+                        tarih = tarih_girdisi.strip()
+                        break
+                    else:
+                        console.print("[bold yellow][UYARI][/bold yellow] Tarihi YYYY-MM-DD biçiminde gir (Örn: 2026-10-25) veya Enter'a bas.")
                 
                 sezon_yili = sezon_hesapla(tarih)
                 sadece_hepsi = int(sezon_yili) not in UCRETSIZ_SEZONLAR
@@ -592,14 +607,10 @@ def uykusuz_tosba_menu():
                 tr_time = datetime.strptime(mac_verisi['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z").astimezone(timezone(timedelta(hours=3)))
 
                 if mac_sonu:
-                    nihai_saat = ""
-                    while not re.fullmatch(r"\d{1,2}:\d{2}", nihai_saat):
-                        nihai_saat = Prompt.ask("[bold cyan]Yayın Saati kaçta? (Örn: 23:45)[/bold cyan]").strip()
-                        if not re.fullmatch(r"\d{1,2}:\d{2}", nihai_saat):
-                            console.print("[bold yellow][UYARI][/bold yellow] Saati SS:DD biçiminde gir (Örn: 23:45).")
+                    nihai_saat = saat_al("Yayın Saati kaçta? (Örn: 23:45)")
                 else:
                     yayin_saati_oto = (tr_time - timedelta(minutes=15)).strftime("%H:%M")
-                    nihai_saat = Prompt.ask(f"[bold cyan]Yayın Saati ({yayin_saati_oto} olarak hesaplandı). Farklı bir saat girmek ister misiniz?[/bold cyan] (Boş bırakırsanız oto. kullanılır)", default=yayin_saati_oto)
+                    nihai_saat = saat_al(f"Yayın Saati ({yayin_saati_oto} olarak hesaplandı). Farklı bir saat girmek ister misiniz?", default=yayin_saati_oto)
             
                 json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
                 with open(json_yolu, "w", encoding="utf-8") as f:
@@ -639,15 +650,22 @@ def uykusuz_tosba_menu():
             console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
 
 
-def saat_oner_al(varsayilan):
+def saat_al(mesaj="Yayın Saati kaçta? (Örn: 21:00)", varsayilan=None):
     while True:
-        saat = Prompt.ask(
-            f"[bold cyan]Yayın Saati ({varsayilan} olarak önerildi). Farklı bir saat girmek ister misiniz?[/bold cyan] (Boş bırakırsanız {varsayilan} kullanılır)",
-            default=varsayilan,
-        ).strip()
+        if varsayilan:
+            saat = Prompt.ask(
+                f"[bold cyan]{mesaj}[/bold cyan] (Boş bırakırsanız {varsayilan} kullanılır)",
+                default=varsayilan,
+            ).strip()
+        else:
+            saat = Prompt.ask(f"[bold cyan]{mesaj}[/bold cyan]").strip()
         if re.fullmatch(r"\d{1,2}:\d{2}", saat):
             return saat
-        console.print("[bold yellow][UYARI][/bold yellow] Saati SS:DD biçiminde gir (Örn: 21:30).")
+        console.print("[bold yellow][UYARI][/bold yellow] Saati SS:DD biçiminde gir (Örn: 21:00).")
+
+
+def saat_oner_al(varsayilan):
+    return saat_al(f"Yayın Saati ({varsayilan} olarak önerildi). Farklı bir saat girmek ister misiniz?", default=varsayilan)
 
 
 def mem_saat_al():
@@ -717,9 +735,7 @@ Oranlar maç saatine kadar değişebilir.
 """
 
 
-def hashtag_yap(takim):
-    temiz = re.sub(r"[\W_]", "", takim)
-    return f"#{temiz}" if temiz else ""
+
 
 
 def tmy_proje_bul():
@@ -846,7 +862,10 @@ def fc_takim_yaz(ad):
 
 def fc_takim_ara(giris):
     tam = ascii_norm(giris)
-    onek = tam[:4].strip()
+    kelimeler = tam.split()
+    if len(kelimeler) > 1 and kelimeler[0] in ("fc", "ac", "as", "sk", "fk"):
+        tam = " ".join(kelimeler[1:])
+    onek = tam[:4].strip() if len(tam) >= 4 else tam
     if len(onek) < 3:
         return []
     r = requests.get("https://v3.football.api-sports.io/teams", headers=HEADERS, params={"search": onek}, timeout=15)
@@ -935,10 +954,14 @@ def fc27_kariyer_yap():
         if not secilen:
             console.print("[dim]Vazgeçildi.[/dim]")
             return
-        fc_logo_hazirla(secilen["logo"])
-        fc_takim_yaz(secilen["ad"])
-        takim = secilen["ad"]
-        console.print(f"[bold cyan][BİLGİ][/bold cyan] {escape(takim)} seçildi, logo {FC_LOGO_BOYUT[0]}x{FC_LOGO_BOYUT[1]} olarak takımlogo.png'ye kaydedildi.")
+        try:
+            fc_logo_hazirla(secilen["logo"])
+            fc_takim_yaz(secilen["ad"])
+            takim = secilen["ad"]
+            console.print(f"[bold cyan][BİLGİ][/bold cyan] {escape(takim)} seçildi, logo {FC_LOGO_BOYUT[0]}x{FC_LOGO_BOYUT[1]} olarak takımlogo.png'ye kaydedildi.")
+        except Exception as e:
+            console.print(f"[bold red][HATA][/bold red] Logo indirilemedi/işlenemedi: {e}")
+            return
 
     console.print("[bold yellow][NOT][/bold yellow] Bu yayın duyurusu, yayın başladıktan sonra yapılır.")
     if Confirm.ask("[bold yellow]Render başlatılsın mı?[/bold yellow]"):
@@ -973,19 +996,25 @@ def radio_mocas_menu():
 # =====================================================================
 # ANA MENÜ
 # =====================================================================
-while True:
-    console.print("\n")
-    ana_menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+def ana_menu():
+    while True:
+        console.print("\n")
+        menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Çıkış"""
-    console.print(Panel(ana_menu, title="[bold yellow]▶️ Youtube Duyuru Sistemi", expand=False))
+        console.print(Panel(menu, title="[bold yellow]▶️ Youtube Duyuru Sistemi", expand=False))
 
-    ana_secim = Prompt.ask("[bold green]Sistem seçin[/bold green]", choices=["1", "2", "3"])
+        ana_secim = Prompt.ask("[bold green]Sistem seçin[/bold green]", choices=["1", "2", "3"])
 
-    if ana_secim == "3":
-        console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
-        break
-    elif ana_secim == "1":
-        uykusuz_tosba_menu()
-    elif ana_secim == "2":
-        radio_mocas_menu()
+        if ana_secim == "3":
+            console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
+            break
+        elif ana_secim == "1":
+            uykusuz_tosba_menu()
+        elif ana_secim == "2":
+            radio_mocas_menu()
+
+
+if __name__ == "__main__":
+    ana_menu()
+
