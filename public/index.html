@@ -22,7 +22,7 @@
     <!-- Üst Başlık (Navbar) -->
     <header class="header-nav">
       <div class="brand-section">
-        <div class="brand-icon">📡</div>
+        <img src="logo.png" alt="Tellal Logo" class="brand-avatar-img">
         <div class="brand-title">
           <h1>Tellal Cloud <span class="brand-badge">Hub</span></h1>
           <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
@@ -41,7 +41,7 @@
         <!-- Aktif Kullanıcı Rozeti -->
         <div class="user-badge" id="btnSwitchUser" onclick="switchUser()" title="Kullanıcı ismini değiştirmek için tıklayın">
           <span>👤</span>
-          <span id="activeUserName">3. Kullanıcı (Editör)</span>
+          <span id="activeUserName">Cem Yıldırım</span>
           <span style="font-size: 0.7rem; opacity: 0.6;">✎</span>
         </div>
 
@@ -127,6 +127,71 @@
       </div>
     </main>
 
+    <!-- İçinde Bulunduğumuz Ayın İnteraktif Takvimi -->
+    <section class="calendar-month-section" id="monthCalendarSection" aria-label="Aylık Yayın Takvimi">
+      <div class="calendar-month-header">
+        <h3 id="calendarCurrentMonthTitle">
+          <span>🗓️</span>
+          <span>Aylık Yayın Takvimi</span>
+        </h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="month-nav-btn" id="prevMonthBtn" title="Önceki Ay">◀ Önceki</button>
+          <button class="month-nav-btn" id="todayMonthBtn" title="Bugüne Dön">Bugün</button>
+          <button class="month-nav-btn" id="nextMonthBtn" title="Sonraki Ay">Sonraki ▶</button>
+        </div>
+      </div>
+
+      <!-- Gün Başlıkları (Pzt - Paz) -->
+      <div class="calendar-weekdays-grid">
+        <div class="calendar-weekday-title">Pzt</div>
+        <div class="calendar-weekday-title">Sal</div>
+        <div class="calendar-weekday-title">Çar</div>
+        <div class="calendar-weekday-title">Per</div>
+        <div class="calendar-weekday-title">Cum</div>
+        <div class="calendar-weekday-title">Cmt</div>
+        <div class="calendar-weekday-title">Paz</div>
+      </div>
+
+      <!-- Gün Kutuları (JS ile doldurulur) -->
+      <div class="calendar-days-grid" id="calendarDaysGrid">
+        <!-- JS ile dinamik günler -->
+      </div>
+    </section>
+
+    <!-- Canlı Ekip Sohbeti (Cem Yıldırım & Ekip) -->
+    <section class="chat-section" id="chatSection" aria-label="Canlı Ekip Sohbeti">
+      <div class="chat-header">
+        <h3>
+          <span>💬</span>
+          <span>Tellal Ekip Canlı Chat</span>
+        </h3>
+        <div class="chat-active-users">
+          <span class="pulse-indicator"></span>
+          <span>Aktif Kullanıcı: <strong style="color: #f59e0b;" id="chatActiveUserLabel">Cem Yıldırım</strong></span>
+        </div>
+      </div>
+
+      <!-- Mesaj Geçmişi -->
+      <div class="chat-messages-container" id="chatMessagesContainer">
+        <!-- JS ile mesajlar render edilecek -->
+      </div>
+
+      <!-- Mesaj Gönderme Formu -->
+      <form id="chatForm" class="chat-input-wrapper">
+        <input 
+          type="text" 
+          id="chatInput" 
+          placeholder="Cem Yıldırım olarak ekip arkadaşlarına mesaj yaz..." 
+          autocomplete="off" 
+          required
+        >
+        <button type="submit" class="chat-send-btn" id="chatSendBtn">
+          <span>Gönder</span>
+          <span>➤</span>
+        </button>
+      </form>
+    </section>
+
   </div>
 
   <!-- Yeni Yayın Ekleme Modalı -->
@@ -192,6 +257,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=3.0"></script>
 </body>
 </html>

@@ -2012,7 +2012,7 @@ def chat_senkronize_et(aktif_kullanici_adi=None):
                 if platform.system() == "Darwin" and aktif_kullanici_adi and yeni_icerik != eski_icerik and mesajlar:
                     son_satir = mesajlar[-1]
                     diger_kullanici = "Yiğit" if aktif_kullanici_adi == "Ufuk" else "Ufuk"
-                    if son_satir.startswith(f"{diger_kullanici}:") or son_satir.startswith("3. Kullanıcı:"):
+                    if son_satir.startswith(f"{diger_kullanici}:") or son_satir.startswith("3. Kullanıcı:") or son_satir.startswith("Cem:") or son_satir.startswith("Cem Yıldırım:"):
                         try:
                             temiz = son_satir.replace('"', "'")
                             subprocess.run(
@@ -2125,7 +2125,7 @@ def chat_oku(aktif_kullanici_adi=None):
 
 
 def formatli_chat_satiri(satir):
-    """Chat satırını WhatsApp renkleri (Ufuk: cyan, Yiğit: magenta) ile biçimlendirir."""
+    """Chat satırını WhatsApp renkleri (Ufuk: cyan, Yiğit: magenta, Cem: yellow) ile biçimlendirir."""
     satir_str = satir.strip()
     if satir_str.startswith("Ufuk:"):
         _, msg = satir_str.split("Ufuk:", 1)
@@ -2134,6 +2134,10 @@ def formatli_chat_satiri(satir):
         prefix = "Yiğit:" if satir_str.startswith("Yiğit:") else "Yigit:"
         _, msg = satir_str.split(prefix, 1)
         return f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]"
+    elif satir_str.startswith("Cem Yıldırım:") or satir_str.startswith("Cem:"):
+        prefix = "Cem Yıldırım:" if satir_str.startswith("Cem Yıldırım:") else "Cem:"
+        _, msg = satir_str.split(prefix, 1)
+        return f"[bold yellow]{prefix}[/bold yellow] [bold white]{escape(msg.strip())}[/bold white]"
     return f"[bold white]{escape(satir_str)}[/bold white]"
 
 
