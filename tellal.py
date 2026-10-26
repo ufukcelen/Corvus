@@ -31,8 +31,13 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.2.0"
+SURUM = "1.3.0"
 SURUM_NOTLARI = {
+    "1.3.0": [
+        "Ana menü altına 'Gelecek Yayınlar' canlı takvim paneli eklendi.",
+        "Ufuk için adım adım 'Yayın Ekle' sihirbazı ve 'Takvimi Temizle' seçenekleri eklendi.",
+        "İki taraf arasında anlık takvim.txt senkronizasyonu tamamlandı.",
+    ],
     "1.2.0": [
         "Ufuk & Yiğit iki taraflı anlık masaüstü bildirim sistemi eklendi.",
         "Açılışta otomatik kullanıcı tanımlama (user.txt) ve 'Hoş geldin' karşılama sistemi eklendi.",
@@ -1417,6 +1422,218 @@ def bildirim_gonder(kullanici_id):
 
 
 # =====================================================================
+# TAKVİM VE GELECEK YAYINLAR SİSTEMİ
+# =====================================================================
+TAKVIM_DOSYASI = os.path.join(SCRIPT_DIR, "takvim.txt")
+TAKVIM_SYNC_DOSYASI = os.path.join(SCRIPT_DIR, ".takvim_sync")
+NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832"
+
+YAYIN_SECENEKLERI = [
+    "Bfü Haftalık Program",
+    "Canlı Maç Sohbeti",
+    "Maç Sonu",
+    "Tek Maçtan Yatanlar",
+    "FC27 Kariyer",
+    "Tosba Lojistik",
+    "Filtresiz Memleket Havası",
+    "Albert ve Cem",
+    "Mocas Bey ve Radyosu",
+    "Aklımdaki Filmler"
+]
+
+HAFTANIN_GUNLERI = [
+    "Pazartesi",
+    "Salı",
+    "Çarşamba",
+    "Perşembe",
+    "Cuma",
+    "Cumartesi",
+    "Pazar"
+]
+
+
+def takvim_senkronize_et():
+    """Uzak sunucudaki (ntfy) en güncel takvim verisini kontrol eder ve yerel takvim.txt ile eşitler."""
+    son_zaman = 0
+    if os.path.exists(TAKVIM_SYNC_DOSYASI):
+        try:
+            with open(TAKVIM_SYNC_DOSYASI, "r", encoding="utf-8") as f:
+                c = f.read().strip()
+                if c.isdigit():
+                    son_zaman = int(c)
+        except Exception:
+            son_zaman = 0
+
+    url = f"https://ntfy.sh/{NTFY_TOPIC_TAKVIM}/json?poll=1&since=all"
+    try:
+        r = requests.get(url, timeout=3.0)
+        if r.status_code == 200 and r.text.strip():
+            en_yeni_mesaj = None
+            for line in r.text.strip().split("\n"):
+                if not line:
+                    continue
+                try:
+                    d = json.loads(line)
+                    if d.get("event") == "message":
+                        m_time = d.get("time", 0)
+                        if m_time >= son_zaman:
+                            en_yeni_mesaj = d
+                            son_zaman = m_time
+                except Exception:
+                    continue
+
+            if en_yeni_mesaj is not None:
+                icerik = en_yeni_mesaj.get("message", "")
+                if icerik == "__BOS_TAKVIM__":
+                    icerik = ""
+                with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(icerik)
+                with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(str(son_zaman))
+    except Exception:
+        pass
+
+
+def takvim_uzaga_gonder(icerik):
+    """Güncellenmiş takvim.txt içeriğini ntfy üzerinden diğer kullanıcıya iletir."""
+    try:
+        mesaj = icerik if icerik.strip() else "__BOS_TAKVIM__"
+        payload = {
+            "topic": NTFY_TOPIC_TAKVIM,
+            "title": "Tellal Takvim Güncellemesi",
+            "message": mesaj,
+            "priority": 3,
+            "tags": ["calendar"]
+        }
+        r = requests.post("https://ntfy.sh", json=payload, timeout=4)
+        if r.status_code == 200:
+            try:
+                res_data = r.json()
+                t = res_data.get("time")
+                if t:
+                    with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(str(t))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def takvim_oku():
+    """Takvim dosyasını senkronize edip satır satır liste olarak döndürür."""
+    takvim_senkronize_et()
+    if not os.path.exists(TAKVIM_DOSYASI):
+        return []
+    try:
+        with open(TAKVIM_DOSYASI, "r", encoding="utf-8") as f:
+            satirlar = [s.strip() for s in f if s.strip()]
+        return satirlar
+    except Exception:
+        return []
+
+
+def takvime_yayin_ekle():
+    """Ufuk için adım adım yayın ekleme sihirbazı."""
+    # Başlangıç seçeneği: Yayın Ekle / Geri
+    console.print()
+    baslangic_menusu = (
+        "[bold cyan]1.[/bold cyan] Yayın Ekle\n"
+        "[bold cyan]2.[/bold cyan] Geri"
+    )
+    console.print(Panel(baslangic_menusu, title="[bold yellow]📅 Takvim İşlemi", expand=False))
+    baslangic_secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2"])
+    if baslangic_secim == "2":
+        console.print("[dim yellow]Ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    # 1. Adım: Yayın Adı Seçimi
+    console.print()
+    yayin_satirlari = [f"[bold cyan]{i}.[/bold cyan] {ad}" for i, ad in enumerate(YAYIN_SECENEKLERI, 1)]
+    yayin_satirlari.append(f"[bold cyan]{len(YAYIN_SECENEKLERI) + 1}.[/bold cyan] Geri")
+    console.print(Panel("\n".join(yayin_satirlari), title="[bold yellow]📺 1. Adım: Yayın Seçin", expand=False))
+
+    gecerli_yayin_secimleri = [str(i) for i in range(1, len(YAYIN_SECENEKLERI) + 2)]
+    yayin_secim = Prompt.ask("[bold green]Yayın seçin[/bold green]", choices=gecerli_yayin_secimleri)
+
+    if yayin_secim == str(len(YAYIN_SECENEKLERI) + 1):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    secilen_yayin = YAYIN_SECENEKLERI[int(yayin_secim) - 1]
+
+    # 2. Adım: Yayın Günü Seçimi
+    console.print()
+    gun_satirlari = [f"[bold cyan]{i}.[/bold cyan] {gun}" for i, gun in enumerate(HAFTANIN_GUNLERI, 1)]
+    gun_satirlari.append(f"[bold cyan]{len(HAFTANIN_GUNLERI) + 1}.[/bold cyan] Geri")
+    console.print(Panel("\n".join(gun_satirlari), title=f"[bold yellow]📅 2. Adım: {secilen_yayin} için Yayın Günü Seçin", expand=False))
+
+    gecerli_gun_secimleri = [str(i) for i in range(1, len(HAFTANIN_GUNLERI) + 2)]
+    gun_secim = Prompt.ask("[bold green]Gün seçin[/bold green]", choices=gecerli_gun_secimleri)
+
+    if gun_secim == str(len(HAFTANIN_GUNLERI) + 1):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    secilen_gun = HAFTANIN_GUNLERI[int(gun_secim) - 1]
+
+    # 3. Adım: Yayın Saati Belirleme
+    console.print()
+    saat_paneli = (
+        f"[bold cyan]Yayın :[/bold cyan] [bold white]{secilen_yayin}[/bold white]\n"
+        f"[bold cyan]Gün   :[/bold cyan] [bold white]{secilen_gun}[/bold white]\n\n"
+        "[dim]Yayın saatini SS:DD formatında girin (Örn: 21:00).\n"
+        "Vazgeçmek için 'g' veya 'q' yazıp Enter'a basabilirsiniz.[/dim]"
+    )
+    console.print(Panel(saat_paneli, title="⏰ 3. Adım: Yayın Saati Belirleyin", expand=False))
+
+    while True:
+        saat_girdisi = Prompt.ask("[bold green]Yayın Saati[/bold green]", default="21:00").strip()
+        if saat_girdisi.lower() in ("g", "geri", "q", "iptal", "exit"):
+            console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+            return
+        if re.fullmatch(r"^(?:[01]\d|2[0-3]):[0-5]\d$", saat_girdisi):
+            secilen_saat = saat_girdisi
+            break
+        console.print("[bold red][HATA][/bold red] Lütfen saati [bold yellow]SS:DD[/bold yellow] formatında girin (Örn: 21:00, 20:30).")
+
+    # Mevcut takvim verilerini oku ve numaralandırarak ekle
+    mevcut_yayinlar = takvim_oku()
+    siradaki_no = len(mevcut_yayinlar) + 1
+    yeni_satir = f"{siradaki_no}-) {secilen_yayin} - {secilen_gun} - {secilen_saat}"
+
+    mevcut_yayinlar.append(yeni_satir)
+    yeni_icerik = "\n".join(mevcut_yayinlar) + "\n"
+
+    try:
+        with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+            f.write(yeni_icerik)
+        takvim_uzaga_gonder(yeni_icerik)
+        console.print(f"\n[bold green]✓ Yayın takvime eklendi:[/bold green] [bold yellow]{yeni_satir}[/bold yellow]\n")
+    except Exception as e:
+        console.print(f"\n[bold red][HATA] Takvim kaydedilemedi: {e}[/bold red]\n")
+
+
+def takvim_temizle():
+    """Tüm yayın takvimini temizler."""
+    mevcut = takvim_oku()
+    if not mevcut:
+        console.print("\n[dim yellow]Yayın takvimi zaten boş.[/dim yellow]\n")
+        return
+
+    console.print()
+    if Confirm.ask("[bold red]Tüm yayın takvimini temizlemek (silmek) istediğinize emin misiniz?[/bold red]", default=False):
+        try:
+            with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                f.write("")
+            takvim_uzaga_gonder("")
+            console.print("\n[bold green]✓ Yayın takvimi tamamen temizlendi.[/bold green]\n")
+        except Exception as e:
+            console.print(f"\n[bold red][HATA] Takvim temizlenirken hata oluştu: {e}[/bold red]\n")
+    else:
+        console.print("[dim]İşlem iptal edildi.[/dim]")
+
+
+# =====================================================================
 # ANA MENÜ
 # =====================================================================
 def ana_menu(kullanici_id, kullanici_adi):
@@ -1428,36 +1645,92 @@ def ana_menu(kullanici_id, kullanici_adi):
         # Ana menüye her dönüldüğünde yeni bir bildirim var mı diye sessizce kontrol et
         bildirimleri_kontrol_et(kullanici_id)
 
-        menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+        # 1. Kutu: Ana Menü
+        if kullanici_id == "1":
+            menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+[bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
+[bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
+[bold cyan]4.[/bold cyan] Yayın Ekle... 📅
+[bold cyan]5.[/bold cyan] Takvimi Temizle 🗑️
+[bold cyan]6.[/bold cyan] Çıkış"""
+            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "k"]
+        else:
+            menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
 [bold cyan]4.[/bold cyan] Çıkış"""
+            gecerli_secimler = ["1", "2", "3", "4", "k"]
+
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=["1", "2", "3", "4", "k"])
+        # 2. Kutu: Gelecek Yayınlar
+        yayin_listesi = takvim_oku()
+        if yayin_listesi:
+            formatli_satirlar = []
+            for satir in yayin_listesi:
+                if "-)" in satir:
+                    no, rest = satir.split("-)", 1)
+                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]")
+                else:
+                    formatli_satirlar.append(f"[bold white]{satir}[/bold white]")
+            liste_metni = "\n".join(formatli_satirlar)
+        else:
+            liste_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
 
-        if ana_secim == "4":
-            console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
-            if platform.system() == "Darwin":
-                try:
-                    subprocess.run(
-                        ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                except Exception:
-                    pass
-            break
-        elif ana_secim == "1":
-            uykusuz_tosba_menu()
-        elif ana_secim == "2":
-            radio_mocas_menu()
-        elif ana_secim == "3":
-            bildirim_gonder(kullanici_id)
-        elif ana_secim == "k":
-            kullanici_id, kullanici_adi = kullanici_degistir()
-            console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
-            bildirimleri_kontrol_et(kullanici_id)
+        console.print(Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
+
+        ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
+
+        if kullanici_id == "1":
+            if ana_secim == "6":
+                console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
+                if platform.system() == "Darwin":
+                    try:
+                        subprocess.run(
+                            ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    except Exception:
+                        pass
+                break
+            elif ana_secim == "1":
+                uykusuz_tosba_menu()
+            elif ana_secim == "2":
+                radio_mocas_menu()
+            elif ana_secim == "3":
+                bildirim_gonder(kullanici_id)
+            elif ana_secim == "4":
+                takvime_yayin_ekle()
+            elif ana_secim == "5":
+                takvim_temizle()
+            elif ana_secim == "k":
+                kullanici_id, kullanici_adi = kullanici_degistir()
+                console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
+                bildirimleri_kontrol_et(kullanici_id)
+        else:
+            if ana_secim == "4":
+                console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
+                if platform.system() == "Darwin":
+                    try:
+                        subprocess.run(
+                            ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                        )
+                    except Exception:
+                        pass
+                break
+            elif ana_secim == "1":
+                uykusuz_tosba_menu()
+            elif ana_secim == "2":
+                radio_mocas_menu()
+            elif ana_secim == "3":
+                bildirim_gonder(kullanici_id)
+            elif ana_secim == "k":
+                kullanici_id, kullanici_adi = kullanici_degistir()
+                console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
+                bildirimleri_kontrol_et(kullanici_id)
 
 
 if __name__ == "__main__":
@@ -1467,5 +1740,6 @@ if __name__ == "__main__":
     console.print(Panel(f"[bold green]✨ Hoş geldin {k_ad}![/bold green]", expand=False))
     bildirimleri_kontrol_et(k_id)
     ana_menu(k_id, k_ad)
+
 
 
