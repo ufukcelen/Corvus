@@ -692,7 +692,164 @@ def api_maclar(params):
     return j.get("response", [])
 
 
+def yayin_saati_kaydet(saat):
+    """yayin_saati.json ve yayin_saati.csv dosyalarını günceller."""
+    json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
+    with open(json_yolu, "w", encoding="utf-8") as f:
+        json.dump({"baslik": f"Bu Aksam {saat}"}, f, ensure_ascii=False)
+
+    csv_yolu = os.path.join(BASE_DIR, "yayin_saati.csv")
+    with open(csv_yolu, "wb") as f:
+        f.write(f'baslik\n"Bu Aksam {saat}"'.encode("utf-8"))
+
+
+def yapim_asamasinda_goster(baslik):
+    """Henüz yapım aşamasında olan modüller için standart bilgilendirme kutusu."""
+    console.print(Panel(
+        f"[bold yellow]🚧 Yapım aşamasında...[/bold yellow]\n\n[dim]{baslik} duyuru otomasyonu yakında eklenecek.[/dim]",
+        title=f"[bold cyan]{baslik}[/bold cyan]",
+        expand=False
+    ))
+    Prompt.ask("\n[bold green]Geri dönmek için Enter'a basın[/bold green]", default="")
+
+
+def haftalik_program_yap():
+    """Uykusuz Tosba Haftalık Program duyuru görsellerini ve videosunu hazırlar."""
+    saat = saat_al("Yayın Saat kaçta? (Örn: 21:00)")
+
+    yayin_saati_kaydet(saat)
+
+    shutil.copyfile(os.path.join(BASE_DIR, "Borders", "superlig.png"), os.path.join(BASE_DIR, "cerceve.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "arkaPlanlar", "superligback.png"), os.path.join(BASE_DIR, "arkaPlan.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "alt", "haftalık futbol programı.png"), os.path.join(BASE_DIR, "konu.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "kafalar", "haftalık.png"), os.path.join(BASE_DIR, "kafa.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "boş.png"), os.path.join(BASE_DIR, "evTakım.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "boş.png"), os.path.join(BASE_DIR, "depTakım.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "logo.png"), os.path.join(BASE_DIR, "VS.png"))
+
+    klasor = cikti_klasoru_al("Haftalık Program")
+    if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
+        ae_render_baslat("Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
+        seo_haftalik_yaz(saat, "Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
+    else:
+        console.print("[dim]Render atlandı.[/dim]")
+
+
+def canli_mac_veya_sonu_yap(mac_sonu=False):
+    """Canlı Maç Sohbeti veya Maç Sonu duyuru otomasyonunu yürütür."""
+    while True:
+        tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
+        girdi_temiz = tarih_girdisi.strip().lower()
+        if girdi_temiz in ("", BUGUN_YAZISI.lower(), "bugün", "bugun"):
+            tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
+            break
+        elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", tarih_girdisi.strip()):
+            tarih = tarih_girdisi.strip()
+            break
+        else:
+            console.print("[bold yellow][UYARI][/bold yellow] Tarihi YYYY-MM-DD biçiminde gir (Örn: 2026-10-25) veya Enter'a bas.")
+
+    sezon_yili = sezon_hesapla(tarih)
+    sadece_hepsi = int(sezon_yili) not in UCRETSIZ_SEZONLAR
+
+    if sadece_hepsi:
+        lig_menu = "[6] Hepsi (Bu 5 Lig)"
+        secenekler, varsayilan = ["6"], "6"
+    else:
+        lig_menu = """[1] Şampiyonlar Ligi  [2] Europa Ligi  [3] Konferans Ligi
+[4] Süper Lig        [5] Uluslar Ligi [6] Hepsi (Bu 5 Lig)"""
+        secenekler, varsayilan = ["1", "2", "3", "4", "5", "6"], None
+
+    console.print(Panel(lig_menu, title="Turnuva Seçimi", expand=False))
+    turnuva_secim = Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler, default=varsayilan) if varsayilan else Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler)
+
+    maclar = []
+    with console.status("[bold cyan]API'den maçlar çekiliyor...[/bold cyan]"):
+        if turnuva_secim == "6":
+            tum = api_maclar({"date": tarih, "timezone": "Europe/Istanbul"})
+            maclar = [m for m in tum if m['league']['id'] in HEPSI_LIG_IDLERI]
+        else:
+            lig_map = {"1": 2, "2": 3, "3": 848, "4": 203, "5": 5}
+            maclar = api_maclar({"date": tarih, "league": lig_map[turnuva_secim], "season": sezon_yili, "timezone": "Europe/Istanbul"})
+
+    if not maclar:
+        console.print(f"[bold red][UYARI][/bold red] {tarih} tarihinde maç bulunamadı.")
+        return
+
+    table = Table(title=f"[bold magenta]--- {tarih} Tarihli Maçlar ---[/bold magenta]")
+    table.add_column("Sıra", justify="right", style="cyan", no_wrap=True)
+    table.add_column("ID", style="magenta")
+    table.add_column("Ev Sahibi", style="green")
+    table.add_column("Deplasman", style="red")
+    table.add_column("Saat", style="yellow")
+    table.add_column("Lig", style="blue")
+
+    sira_to_id = {}
+    id_list = []
+
+    for idx, m in enumerate(maclar, start=1):
+        f_id = str(m['fixture']['id'])
+        sira_to_id[str(idx)] = f_id
+        id_list.append(f_id)
+
+        utc_time = datetime.strptime(m['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z")
+        tr_time = utc_time.astimezone(timezone(timedelta(hours=3)))
+        mac_saati_str = tr_time.strftime("%H:%M")
+
+        table.add_row(str(idx), f_id, m['teams']['home']['name'], m['teams']['away']['name'], mac_saati_str, m['league']['name'])
+
+    console.print(table)
+
+    girdi = Prompt.ask("[bold cyan]Sıra No veya Maç ID'si girin[/bold cyan]").strip()
+
+    if girdi in sira_to_id and girdi in id_list:
+        girdi = Prompt.ask("[bold red][DİKKAT][/bold red] Girdiğiniz sayı hem Sıra No hem ID ile eşleşiyor. Tam Maç ID'sini tekrar girin").strip()
+        secilen_id = girdi
+    else:
+        secilen_id = sira_to_id.get(girdi, girdi)
+
+    mac_verisi = next((m for m in maclar if str(m['fixture']['id']) == secilen_id), None)
+
+    if not mac_verisi:
+        console.print("[bold red][UYARI][/bold red] Maç bulunamadı.")
+        return
+
+    tr_time = datetime.strptime(mac_verisi['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z").astimezone(timezone(timedelta(hours=3)))
+
+    if mac_sonu:
+        nihai_saat = saat_al("Yayın Saati kaçta? (Örn: 23:45)")
+    else:
+        yayin_saati_oto = (tr_time - timedelta(minutes=15)).strftime("%H:%M")
+        nihai_saat = saat_al(f"Yayın Saati ({yayin_saati_oto} olarak hesaplandı). Farklı bir saat girmek ister misiniz?", default=yayin_saati_oto)
+
+    yayin_saati_kaydet(nihai_saat)
+
+    lig_id = mac_verisi['league']['id']
+    b_map = {2: "cl.png", 3: "europa.png", 848: "conferance.png", 203: "superlig.png", 5: "uluslarLigi.png"}
+    bg_map = {2: "clback.png", 3: "europaback.png", 848: "confBack.png", 203: "superligback.png", 5: "ulusArka.png"}
+
+    shutil.copyfile(os.path.join(BASE_DIR, "Borders", b_map.get(lig_id, "superlig.png")), os.path.join(BASE_DIR, "cerceve.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "arkaPlanlar", bg_map.get(lig_id, "superligback.png")), os.path.join(BASE_DIR, "arkaPlan.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "alt", "maç sonu.png" if mac_sonu else "canlı maç sohbetlerİ.png"), os.path.join(BASE_DIR, "konu.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "kafalar", "millitakım.png" if lig_id == 5 else "haftalık.png"), os.path.join(BASE_DIR, "kafa.png"))
+    shutil.copyfile(os.path.join(BASE_DIR, "dosyalar", "VS.png"), os.path.join(BASE_DIR, "VS.png"))
+
+    logo_hazirla(mac_verisi['teams']['home'].get('logo'), os.path.join(BASE_DIR, "evTakım.png"), "Ev sahibi")
+    logo_hazirla(mac_verisi['teams']['away'].get('logo'), os.path.join(BASE_DIR, "depTakım.png"), "Deplasman")
+    png_dogrula(["cerceve.png", "arkaPlan.png", "konu.png", "kafa.png", "VS.png", "evTakım.png", "depTakım.png"])
+
+    prog_adi = "Maç Sonu" if mac_sonu else "Canlı Maç Sohbeti"
+    klasor = cikti_klasoru_al(prog_adi, tarih=tarih)
+    if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
+        video_adi = f"{'Mac_Sonu' if mac_sonu else 'Mac_Sohbeti'}_{nihai_saat.replace(':', '')}.mp4"
+        ae_render_baslat(video_adi, hedef_klasor=klasor)
+        seo_canli_yaz(mac_verisi, nihai_saat, video_adi, mac_sonu=mac_sonu, hedef_klasor=klasor)
+    else:
+        console.print("[dim]Render atlandı.[/dim]")
+
+
 def uykusuz_tosba_menu():
+    """Uykusuz Tosba alt programları için interaktif menü."""
     while True:
         console.print("\n")
         menu = """[bold cyan]1.[/bold cyan] Haftalık Program
@@ -703,7 +860,7 @@ def uykusuz_tosba_menu():
 [bold cyan]6.[/bold cyan] Tosba Lojistik (ETS2)
 [bold cyan]7.[/bold cyan] Geri"""
         console.print(Panel(menu, title=f"[bold yellow]🐢 Uykusuz Tosba Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
-    
+
         secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6", "7"])
 
         if secim == "7":
@@ -711,157 +868,17 @@ def uykusuz_tosba_menu():
 
         try:
             if secim == "1":
-                saat = saat_al("Yayın Saat kaçta? (Örn: 21:00)")
-            
-                json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
-                with open(json_yolu, "w", encoding="utf-8") as f:
-                    json.dump({"baslik": f"Bu Aksam {saat}"}, f, ensure_ascii=False)
-                
-                csv_yolu = os.path.join(BASE_DIR, "yayin_saati.csv")
-                with open(csv_yolu, "wb") as f:
-                    f.write(f'baslik\n"Bu Aksam {saat}"'.encode("utf-8"))
-                
-                shutil.copyfile(os.path.join(BASE_DIR, "Borders", "superlig.png"), os.path.join(BASE_DIR, "cerceve.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "arkaPlanlar", "superligback.png"), os.path.join(BASE_DIR, "arkaPlan.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "alt", "haftalık futbol programı.png"), os.path.join(BASE_DIR, "konu.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "kafalar", "haftalık.png"), os.path.join(BASE_DIR, "kafa.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "boş.png"), os.path.join(BASE_DIR, "evTakım.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "boş.png"), os.path.join(BASE_DIR, "depTakım.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "logo.png"), os.path.join(BASE_DIR, "VS.png"))
-            
-                klasor = cikti_klasoru_al("Haftalık Program")
-                if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
-                    ae_render_baslat("Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
-                    seo_haftalik_yaz(saat, "Haftalik_Program_Duyurusu.mp4", hedef_klasor=klasor)
-                else:
-                    console.print("[dim]Render atlandı.[/dim]")
-
-            elif secim in ("2", "3"):
-                mac_sonu = secim == "3" 
-                while True:
-                    tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
-                    girdi_temiz = tarih_girdisi.strip().lower()
-                    if girdi_temiz in ("", BUGUN_YAZISI.lower(), "bugün", "bugun"):
-                        tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
-                        break
-                    elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", tarih_girdisi.strip()):
-                        tarih = tarih_girdisi.strip()
-                        break
-                    else:
-                        console.print("[bold yellow][UYARI][/bold yellow] Tarihi YYYY-MM-DD biçiminde gir (Örn: 2026-10-25) veya Enter'a bas.")
-                
-                sezon_yili = sezon_hesapla(tarih)
-                sadece_hepsi = int(sezon_yili) not in UCRETSIZ_SEZONLAR
-
-                if sadece_hepsi:
-                    lig_menu = "[6] Hepsi (Bu 5 Lig)"
-                    secenekler, varsayilan = ["6"], "6"
-                else:
-                    lig_menu = """[1] Şampiyonlar Ligi  [2] Europa Ligi  [3] Konferans Ligi
-[4] Süper Lig        [5] Uluslar Ligi [6] Hepsi (Bu 5 Lig)"""
-                    secenekler, varsayilan = ["1", "2", "3", "4", "5", "6"], None
-
-                console.print(Panel(lig_menu, title="Turnuva Seçimi", expand=False))
-                turnuva_secim = Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler, default=varsayilan) if varsayilan else Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler)
-
-                maclar = []
-                with console.status("[bold cyan]API'den maçlar çekiliyor...[/bold cyan]"):
-                    if turnuva_secim == "6":
-                        tum = api_maclar({"date": tarih, "timezone": "Europe/Istanbul"})
-                        maclar = [m for m in tum if m['league']['id'] in HEPSI_LIG_IDLERI]
-                    else:
-                        lig_map = {"1": 2, "2": 3, "3": 848, "4": 203, "5": 5}
-                        maclar = api_maclar({"date": tarih, "league": lig_map[turnuva_secim], "season": sezon_yili, "timezone": "Europe/Istanbul"})
-
-                if not maclar:
-                    console.print(f"[bold red][UYARI][/bold red] {tarih} tarihinde maç bulunamadı.")
-                    continue
-                
-                table = Table(title=f"[bold magenta]--- {tarih} Tarihli Maçlar ---[/bold magenta]")
-                table.add_column("Sıra", justify="right", style="cyan", no_wrap=True)
-                table.add_column("ID", style="magenta")
-                table.add_column("Ev Sahibi", style="green")
-                table.add_column("Deplasman", style="red")
-                table.add_column("Saat", style="yellow")
-                table.add_column("Lig", style="blue")
-
-                sira_to_id = {}
-                id_list = []
-            
-                for idx, m in enumerate(maclar, start=1):
-                    f_id = str(m['fixture']['id'])
-                    sira_to_id[str(idx)] = f_id
-                    id_list.append(f_id)
-                
-                    utc_time = datetime.strptime(m['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z")
-                    tr_time = utc_time.astimezone(timezone(timedelta(hours=3)))
-                    mac_saati_str = tr_time.strftime("%H:%M")
-                
-                    table.add_row(str(idx), f_id, m['teams']['home']['name'], m['teams']['away']['name'], mac_saati_str, m['league']['name'])
-                
-                console.print(table)
-            
-                girdi = Prompt.ask("[bold cyan]Sıra No veya Maç ID'si girin[/bold cyan]").strip()
-            
-                if girdi in sira_to_id and girdi in id_list:
-                    girdi = Prompt.ask("[bold red][DİKKAT][/bold red] Girdiğiniz sayı hem Sıra No hem ID ile eşleşiyor. Tam Maç ID'sini tekrar girin").strip()
-                    secilen_id = girdi
-                else:
-                    secilen_id = sira_to_id.get(girdi, girdi)
-            
-                mac_verisi = next((m for m in maclar if str(m['fixture']['id']) == secilen_id), None)
-            
-                if not mac_verisi:
-                    console.print("[bold red][UYARI][/bold red] Maç bulunamadı.")
-                    continue
-                    
-                tr_time = datetime.strptime(mac_verisi['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z").astimezone(timezone(timedelta(hours=3)))
-
-                if mac_sonu:
-                    nihai_saat = saat_al("Yayın Saati kaçta? (Örn: 23:45)")
-                else:
-                    yayin_saati_oto = (tr_time - timedelta(minutes=15)).strftime("%H:%M")
-                    nihai_saat = saat_al(f"Yayın Saati ({yayin_saati_oto} olarak hesaplandı). Farklı bir saat girmek ister misiniz?", default=yayin_saati_oto)
-            
-                json_yolu = os.path.join(BASE_DIR, "yayin_saati.json")
-                with open(json_yolu, "w", encoding="utf-8") as f:
-                    json.dump({"baslik": f"Bu Aksam {nihai_saat}"}, f, ensure_ascii=False)
-                
-                csv_yolu = os.path.join(BASE_DIR, "yayin_saati.csv")
-                with open(csv_yolu, "wb") as f:
-                    f.write(f'baslik\n"Bu Aksam {nihai_saat}"'.encode("utf-8"))
-                
-                lig_id = mac_verisi['league']['id']
-                b_map = {2: "cl.png", 3: "europa.png", 848: "conferance.png", 203: "superlig.png", 5: "uluslarLigi.png"}
-                bg_map = {2: "clback.png", 3: "europaback.png", 848: "confBack.png", 203: "superligback.png", 5: "ulusArka.png"}
-            
-                shutil.copyfile(os.path.join(BASE_DIR, "Borders", b_map.get(lig_id, "superlig.png")), os.path.join(BASE_DIR, "cerceve.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "arkaPlanlar", bg_map.get(lig_id, "superligback.png")), os.path.join(BASE_DIR, "arkaPlan.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "alt", "maç sonu.png" if mac_sonu else "canlı maç sohbetlerİ.png"), os.path.join(BASE_DIR, "konu.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "kafalar", "millitakım.png" if lig_id == 5 else "haftalık.png"), os.path.join(BASE_DIR, "kafa.png"))
-                shutil.copyfile(os.path.join(BASE_DIR, "dosyalar", "VS.png"), os.path.join(BASE_DIR, "VS.png"))
-            
-                logo_hazirla(mac_verisi['teams']['home'].get('logo'), os.path.join(BASE_DIR, "evTakım.png"), "Ev sahibi")
-                logo_hazirla(mac_verisi['teams']['away'].get('logo'), os.path.join(BASE_DIR, "depTakım.png"), "Deplasman")
-                png_dogrula(["cerceve.png", "arkaPlan.png", "konu.png", "kafa.png", "VS.png", "evTakım.png", "depTakım.png"])
-
-                prog_adi = "Maç Sonu" if mac_sonu else "Canlı Maç Sohbeti"
-                klasor = cikti_klasoru_al(prog_adi, tarih=tarih)
-                if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
-                    video_adi = f"{'Mac_Sonu' if mac_sonu else 'Mac_Sohbeti'}_{nihai_saat.replace(':', '')}.mp4"
-                    ae_render_baslat(video_adi, hedef_klasor=klasor)
-                    seo_canli_yaz(mac_verisi, nihai_saat, video_adi, mac_sonu=mac_sonu, hedef_klasor=klasor)
-                else:
-                    console.print("[dim]Render atlandı.[/dim]")
-
+                haftalik_program_yap()
+            elif secim == "2":
+                canli_mac_veya_sonu_yap(mac_sonu=False)
+            elif secim == "3":
+                canli_mac_veya_sonu_yap(mac_sonu=True)
             elif secim == "4":
                 tek_mac_yatanlar_yap()
             elif secim == "5":
                 fc27_kariyer_yap()
             elif secim == "6":
-                console.print(Panel("[bold yellow]🚧 Yapım aşamasında...[/bold yellow]\n\n[dim]Tosba Lojistik (ETS2) duyuru otomasyonu yakında eklenecek.[/dim]", title="[bold cyan]Tosba Lojistik (ETS2)", expand=False))
-                Prompt.ask("\n[bold green]Geri dönmek için Enter'a basın[/bold green]", default="")
-
+                yapim_asamasinda_goster("Tosba Lojistik (ETS2)")
         except Exception as e:
             console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
 
@@ -1258,8 +1275,10 @@ def radio_mocas_menu():
                 albert_ve_cem_yap()
             except Exception as e:
                 console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
-        else:
-            console.print("[bold yellow]Yapım aşamasında...[/bold yellow]")
+        elif secim == "3":
+            yapim_asamasinda_goster("Mocas Bey ve Radyosu")
+        elif secim == "4":
+            yapim_asamasinda_goster("Aklımdaki Filmler")
 
 
 def banner_yazdir():
@@ -1665,6 +1684,42 @@ def takvime_yayin_ekle():
         console.print(f"\n[bold red][HATA] Takvim kaydedilemedi: {e}[/bold red]\n")
 
 
+def yayin_satiri_formatla(satir, numarayi_vurgula=False):
+    """
+    Takvim satırını zenginleştirilmiş metin (Rich formatı) olarak biçimlendirir.
+    Örn: '1-) Canlı Yayın ✅ | Bilgi: Pazartesi 20:00'
+    """
+    if " | Bilgi: " in satir:
+        ana_kisim, bilgi_kismi = satir.split(" | Bilgi: ", 1)
+        bilgi_metni = f" [bold yellow]({bilgi_kismi.strip()})[/bold yellow]" if bilgi_kismi.strip() else ""
+    else:
+        ana_kisim, bilgi_metni = satir, ""
+
+    if "-)" in ana_kisim:
+        no, rest = ana_kisim.split("-)", 1)
+        rest_metni = rest.strip()
+        if "✅" in rest_metni:
+            rest_metni = rest_metni.replace("✅", "[bold green]✅[/bold green]")
+        if "❌" in rest_metni:
+            rest_metni = rest_metni.replace("❌", "[bold red]❌[/bold red]")
+        if numarayi_vurgula:
+            return f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest_metni}[/bold white]{bilgi_metni}"
+        else:
+            return f"[bold white]{no}-) {rest_metni}[/bold white]{bilgi_metni}"
+    else:
+        metin = ana_kisim
+        if "✅" in metin:
+            metin = metin.replace("✅", "[bold green]✅[/bold green]")
+        if "❌" in metin:
+            metin = metin.replace("❌", "[bold red]❌[/bold red]")
+        return f"[bold white]{metin}[/bold white]{bilgi_metni}"
+
+
+def yayin_listesi_metinleri_al(yayinlar, numarayi_vurgula=False):
+    """Yayın listesindeki her bir satırı biçimlendirip liste olarak döndürür."""
+    return [yayin_satiri_formatla(s, numarayi_vurgula=numarayi_vurgula) for s in yayinlar]
+
+
 def yayin_iptal_et():
     """Kullanıcı 1 (Ufuk) için takvimdeki bir yayını iptal eder ve isminin yanına ❌ ekler."""
     yayinlar = takvim_oku()
@@ -1673,14 +1728,7 @@ def yayin_iptal_et():
         return
 
     console.print()
-    yayin_metinleri = []
-    for s in yayinlar:
-        if " | Bilgi: " in s:
-            ana, bilgi = s.split(" | Bilgi: ", 1)
-            ek = f" [bold yellow]({bilgi.strip()})[/bold yellow]" if bilgi.strip() else ""
-        else:
-            ana, ek = s, ""
-        yayin_metinleri.append(f"[bold white]{ana}[/bold white]{ek}")
+    yayin_metinleri = yayin_listesi_metinleri_al(yayinlar)
 
     panel_icerik = (
         "[bold cyan]Takvimdeki Mevcut Yayınlar:[/bold cyan]\n\n" +
@@ -1742,14 +1790,7 @@ def yayin_sil():
         return
 
     console.print()
-    yayin_metinleri = []
-    for s in yayinlar:
-        if " | Bilgi: " in s:
-            ana, bilgi = s.split(" | Bilgi: ", 1)
-            ek = f" [bold yellow]({bilgi.strip()})[/bold yellow]" if bilgi.strip() else ""
-        else:
-            ana, ek = s, ""
-        yayin_metinleri.append(f"[bold white]{ana}[/bold white]{ek}")
+    yayin_metinleri = yayin_listesi_metinleri_al(yayinlar)
 
     panel_icerik = (
         "[bold cyan]Takvimdeki Mevcut Yayınlar:[/bold cyan]\n\n" +
@@ -1816,14 +1857,7 @@ def duyurulari_yapildi_isaretle():
         return
 
     console.print()
-    yayin_metinleri = []
-    for s in yayinlar:
-        if " | Bilgi: " in s:
-            ana, bilgi = s.split(" | Bilgi: ", 1)
-            ek = f" [bold yellow]({bilgi.strip()})[/bold yellow]" if bilgi.strip() else ""
-        else:
-            ana, ek = s, ""
-        yayin_metinleri.append(f"[bold white]{ana}[/bold white]{ek}")
+    yayin_metinleri = yayin_listesi_metinleri_al(yayinlar)
 
     panel_icerik = (
         "[bold cyan]Takvimdeki Mevcut Yayınlar:[/bold cyan]\n\n" +
@@ -1990,6 +2024,19 @@ def chat_oku(aktif_kullanici_adi=None):
         return []
 
 
+def formatli_chat_satiri(satir):
+    """Chat satırını WhatsApp renkleri (Ufuk: cyan, Yiğit: magenta) ile biçimlendirir."""
+    satir_str = satir.strip()
+    if satir_str.startswith("Ufuk:"):
+        _, msg = satir_str.split("Ufuk:", 1)
+        return f"[bold cyan]Ufuk:[/bold cyan] [bold white]{escape(msg.strip())}[/bold white]"
+    elif satir_str.startswith("Yiğit:") or satir_str.startswith("Yigit:"):
+        prefix = "Yiğit:" if satir_str.startswith("Yiğit:") else "Yigit:"
+        _, msg = satir_str.split(prefix, 1)
+        return f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]"
+    return f"[bold white]{escape(satir_str)}[/bold white]"
+
+
 def chat_mesaj_gonder(kullanici_id, kullanici_adi):
     """Kullanıcının chat kutusuna mesaj göndermesini sağlar."""
     diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
@@ -1998,17 +2045,7 @@ def chat_mesaj_gonder(kullanici_id, kullanici_adi):
     console.print()
     mesajlar = chat_oku(kullanici_adi)
     if mesajlar:
-        formatli = []
-        for s in mesajlar[-10:]:
-            if s.startswith("Ufuk:"):
-                _, msg = s.split("Ufuk:", 1)
-                formatli.append(f"[bold cyan]Ufuk:[/bold cyan] [bold white]{escape(msg.strip())}[/bold white]")
-            elif s.startswith("Yiğit:") or s.startswith("Yigit:"):
-                prefix = "Yiğit:" if s.startswith("Yiğit:") else "Yigit:"
-                _, msg = s.split(prefix, 1)
-                formatli.append(f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]")
-            else:
-                formatli.append(f"[bold white]{escape(s)}[/bold white]")
+        formatli = [formatli_chat_satiri(s) for s in mesajlar[-10:]]
         sohbet_gecmisi = "\n".join(formatli) + "\n\n"
     else:
         sohbet_gecmisi = "[dim]Henüz sohbet mesajı yok.[/dim]\n\n"
@@ -2167,22 +2204,10 @@ def ana_menu_secim_al(prompt_metni, gecerli_secimler):
         termios.tcsetattr(fd, termios.TCSADRAIN, eski_ayarlar)
 
 
-def ana_menu(kullanici_id, kullanici_adi):
-    yenilendi_mesaji = False
-    while True:
-        diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
-        banner_yazdir()
-        console.print(f"[bold green]👤 Aktif Kullanıcı:[/bold green] [bold yellow]{kullanici_adi}[/bold yellow]  [dim](Değiştirmek için 'k')[/dim]")
-        if yenilendi_mesaji:
-            console.print("[bold green]✓[/bold green] [dim cyan]Yayın durumu ve Chat yenilendi.[/dim cyan]")
-            yenilendi_mesaji = False
-
-        # Ana menüye her dönüldüğünde yeni bir bildirim var mı diye sessizce kontrol et
-        bildirimleri_kontrol_et(kullanici_id)
-
-        # 1. Kutu: Ana Menü
-        if kullanici_id == "1":
-            menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+def ana_menu_paneli_olustur(kullanici_id):
+    """Kullanıcıya özel ana menü panelini ve geçerli seçim listesini oluşturur."""
+    if kullanici_id == "1":
+        menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Chat'i Sil... 🗑️
@@ -2192,77 +2217,82 @@ def ana_menu(kullanici_id, kullanici_adi):
 [bold cyan]8.[/bold cyan] Çıkış
 
 [dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
-            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
-        else:
-            menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
+    else:
+        menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Duyurular Yapıldı ✅
 [bold cyan]5.[/bold cyan] Çıkış
 
 [dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
-            gecerli_secimler = ["1", "2", "3", "4", "5", "k", "r"]
+        gecerli_secimler = ["1", "2", "3", "4", "5", "k", "r"]
 
-        console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
+    return Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False), gecerli_secimler
 
-        # 2. Kutu: Gelecek Yayınlar (Bilgi doğrudan ilgili yayının yanında gösterilir)
-        yayin_listesi = takvim_oku()
-        formatli_satirlar = []
 
-        if yayin_listesi:
-            for satir in yayin_listesi:
-                if " | Bilgi: " in satir:
-                    ana_kisim, bilgi_kismi = satir.split(" | Bilgi: ", 1)
-                else:
-                    ana_kisim, bilgi_kismi = satir, ""
+def gelecek_yayinlar_paneli_olustur():
+    """Takvimdeki gelecek yayınları gösteren kutu panelini oluşturur."""
+    yayin_listesi = takvim_oku()
+    if yayin_listesi:
+        formatli_satirlar = yayin_listesi_metinleri_al(yayin_listesi, numarayi_vurgula=True)
+        liste_metni = "\n".join(formatli_satirlar)
+    else:
+        liste_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
+    return Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False)
 
-                bilgi_metni = f" [bold yellow]({bilgi_kismi.strip()})[/bold yellow]" if bilgi_kismi.strip() else ""
 
-                if "-)" in ana_kisim:
-                    no, rest = ana_kisim.split("-)", 1)
-                    rest_metni = rest.strip()
-                    if "✅" in rest_metni:
-                        rest_metni = rest_metni.replace("✅", "[bold green]✅[/bold green]")
-                    if "❌" in rest_metni:
-                        rest_metni = rest_metni.replace("❌", "[bold red]❌[/bold red]")
-                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest_metni}[/bold white]{bilgi_metni}")
-                else:
-                    metin = ana_kisim
-                    if "✅" in metin:
-                        metin = metin.replace("✅", "[bold green]✅[/bold green]")
-                    if "❌" in metin:
-                        metin = metin.replace("❌", "[bold red]❌[/bold red]")
-                    formatli_satirlar.append(f"[bold white]{metin}[/bold white]{bilgi_metni}")
+def chat_paneli_olustur(kullanici_adi):
+    """Ana menü altındaki son chat mesajları panelini oluşturur."""
+    chat_mesajlari = chat_oku(kullanici_adi)
+    if chat_mesajlari:
+        formatli_chat = [formatli_chat_satiri(s) for s in chat_mesajlari[-12:]]
+        chat_metni = "\n".join(formatli_chat)
+    else:
+        chat_metni = "[dim]Henüz sohbet mesajı yok.[/dim]"
+    return Panel(chat_metni, title="[bold yellow]💬 Chat[/bold yellow]", expand=False)
 
-            liste_metni = "\n".join(formatli_satirlar)
-        else:
-            liste_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
 
-        console.print(Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
+def uygulamadan_cik():
+    """Programdan çıkış yapar ve gerekirse macOS Terminal penceresini kapatır."""
+    console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
+    if platform.system() == "Darwin":
+        try:
+            subprocess.run(
+                ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
 
-        # 3. Kutu: Chat (WhatsApp mesajları gibi Yiğit: Mesaj, Ufuk: Mesaj)
-        chat_mesajlari = chat_oku(kullanici_adi)
-        if chat_mesajlari:
-            formatli_chat = []
-            for s in chat_mesajlari[-12:]:
-                if s.startswith("Ufuk:"):
-                    _, msg = s.split("Ufuk:", 1)
-                    formatli_chat.append(f"[bold cyan]Ufuk:[/bold cyan] [bold white]{escape(msg.strip())}[/bold white]")
-                elif s.startswith("Yiğit:") or s.startswith("Yigit:"):
-                    prefix = "Yiğit:" if s.startswith("Yiğit:") else "Yigit:"
-                    _, msg = s.split(prefix, 1)
-                    formatli_chat.append(f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]")
-                else:
-                    formatli_chat.append(f"[bold white]{escape(s)}[/bold white]")
-            chat_metni = "\n".join(formatli_chat)
-        else:
-            chat_metni = "[dim]Henüz sohbet mesajı yok.[/dim]"
 
-        console.print(Panel(chat_metni, title="[bold yellow]💬 Chat[/bold yellow]", expand=False))
+def ana_menu(kullanici_id, kullanici_adi):
+    """Ana menü arayüzü ve işlem yönlendiricisi."""
+    yenilendi_mesaji = False
+    while True:
+        banner_yazdir()
+        console.print(f"[bold green]👤 Aktif Kullanıcı:[/bold green] [bold yellow]{kullanici_adi}[/bold yellow]  [dim](Değiştirmek için 'k')[/dim]")
+        if yenilendi_mesaji:
+            console.print("[bold green]✓[/bold green] [dim cyan]Yayın durumu ve Chat yenilendi.[/dim cyan]")
+            yenilendi_mesaji = False
+
+        # Karşı taraftan yeni bir bildirim var mı diye sessizce kontrol et
+        bildirimleri_kontrol_et(kullanici_id)
+
+        # 1. Kutu: Ana Menü
+        menu_paneli, gecerli_secimler = ana_menu_paneli_olustur(kullanici_id)
+        console.print(menu_paneli)
+
+        # 2. Kutu: Gelecek Yayınlar
+        console.print(gelecek_yayinlar_paneli_olustur())
+
+        # 3. Kutu: Chat
+        console.print(chat_paneli_olustur(kullanici_adi))
 
         ana_secim = ana_menu_secim_al("[bold green]Seçim yapın[/bold green]", gecerli_secimler)
 
-        # R tuşuna basıldığında anında yayın durumu, chat ve bildirimleri yenile (API çağrıları hariç)
+        # R tuşuna basıldığında yayın durumu, chat ve bildirimleri anında yenile (API çağrıları hariç)
         if ana_secim == "r":
             takvim_senkronize_et()
             chat_senkronize_et(kullanici_adi)
@@ -2272,16 +2302,7 @@ def ana_menu(kullanici_id, kullanici_adi):
 
         if kullanici_id == "1":
             if ana_secim == "8":
-                console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
-                if platform.system() == "Darwin":
-                    try:
-                        subprocess.run(
-                            ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                    except Exception:
-                        pass
+                uygulamadan_cik()
                 break
             elif ana_secim == "1":
                 uykusuz_tosba_menu()
@@ -2303,16 +2324,7 @@ def ana_menu(kullanici_id, kullanici_adi):
                 bildirimleri_kontrol_et(kullanici_id)
         else:
             if ana_secim == "5":
-                console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
-                if platform.system() == "Darwin":
-                    try:
-                        subprocess.run(
-                            ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL,
-                        )
-                    except Exception:
-                        pass
+                uygulamadan_cik()
                 break
             elif ana_secim == "1":
                 uykusuz_tosba_menu()
