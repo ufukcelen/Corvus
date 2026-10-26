@@ -312,15 +312,39 @@ def cikti_klasoru_al(program_adi, tarih=None):
 
 
 def masaustu_app_olustur():
-    """macOS ortamında Masaüstüne çift tıklanabilir Tellal.app uygulamasını oluşturur."""
+    """macOS ortamında Masaüstüne çift tıklanabilir Tellal.app uygulamasını oluşturur ve özel ikonunu atar."""
     if platform.system() != "Darwin":
         return
     app_yolu = os.path.join(MASAUSTU, "Tellal.app")
-    if os.path.exists(app_yolu):
-        return
+    icns_kaynak = os.path.join(SCRIPT_DIR, "tellal.icns")
+    png_kaynak = os.path.join(SCRIPT_DIR, "tellalicon.png")
+
+    yeni_olusturuldu = False
+    if not os.path.exists(app_yolu):
+        try:
+            script = f'tell application "Terminal" to do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"'
+            subprocess.run(["osacompile", "-o", app_yolu, "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            yeni_olusturuldu = True
+        except Exception:
+            return
+
+    # İkon dosyasını ve özel Finder rozetini güncelle
     try:
-        script = f'tell application "Terminal" to do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"'
-        subprocess.run(["osacompile", "-o", app_yolu, "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        icns_hedef = os.path.join(app_yolu, "Contents", "Resources", "applet.icns")
+        assets_car = os.path.join(app_yolu, "Contents", "Resources", "Assets.car")
+        if os.path.exists(assets_car):
+            try:
+                os.remove(assets_car)
+            except Exception:
+                pass
+        if os.path.exists(icns_kaynak) and (yeni_olusturuldu or not os.path.exists(icns_hedef)):
+            shutil.copy2(icns_kaynak, icns_hedef)
+            subprocess.run(["touch", app_yolu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        icon_rsrc = os.path.join(app_yolu, "Icon\r")
+        if (yeni_olusturuldu or not os.path.exists(icon_rsrc)) and os.path.exists(png_kaynak):
+            swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
+            subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
 
