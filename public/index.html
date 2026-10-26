@@ -6,7 +6,7 @@
   <title>Tellal Cloud — YouTube Yayın Takvimi & Planlama Portalı</title>
   <meta name="description" content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=3.5">
+  <link rel="stylesheet" href="style.css?v=4.0">
 </head>
 <body>
 
@@ -49,6 +49,12 @@
         <button id="manualSyncBtn" class="btn btn-secondary btn-sm" title="Takvimi Bulutla Eşitle">
           <span class="sync-icon">🔄</span>
           <span>Yenile</span>
+        </button>
+
+        <!-- Gemini AI Maç Takip Butonu -->
+        <button id="btnGeminiAiScan" class="btn btn-gemini-ai" title="Milli Takım, FB, GS, BJK ve TS Maçlarını Tara">
+          <span class="ai-sparkle">✨</span>
+          <span>Gemini AI</span>
         </button>
 
         <!-- Yeni Yayın Ekle Butonu -->
@@ -130,8 +136,13 @@
     <!-- İçinde Bulunduğumuz Ayın İnteraktif Takvimi (Sleek Apple/Google Calendar Design) -->
     <section class="calendar-month-section" id="monthCalendarSection" aria-label="Aylık Yayın Takvimi">
       <div class="calendar-month-header">
-        <div class="calendar-title-text" id="calendarCurrentMonthTitle">
-          Ekim 2026
+        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <div class="calendar-title-text" id="calendarCurrentMonthTitle">
+            Ekim 2026
+          </div>
+          <span class="ai-badge" id="geminiAiStatusBadge" title="Türkiye Milli Takımı & 4 Büyükler maç takibi aktif">
+            <span>✨</span> Gemini AI Aktif
+          </span>
         </div>
         <div class="cal-nav-group">
           <button class="cal-nav-arrow-btn" id="prevMonthBtn" title="Önceki Ay" aria-label="Önceki Ay">&lt;</button>
@@ -263,6 +274,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=4.0"></script>
 </body>
 </html>

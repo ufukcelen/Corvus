@@ -260,6 +260,42 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.btn-gemini-ai {
+  background: linear-gradient(135deg, #8b5cf6, #ec4899, #3b82f6);
+  background-size: 200% 200%;
+  animation: geminiGradient 4s ease infinite;
+  color: #ffffff;
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 4px 18px rgba(139, 92, 246, 0.4);
+  transition: all 0.25s ease;
+}
+
+.btn-gemini-ai:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(236, 72, 153, 0.55);
+  filter: brightness(1.15);
+}
+
+@keyframes geminiGradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.ai-badge {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: #f472b6;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .btn-sm {
   padding: 6px 12px;
   font-size: 0.8rem;
@@ -1084,6 +1120,12 @@ body {
   color: #fca5a5;
   border-left: 3px solid #ef4444;
   text-decoration: line-through;
+}
+
+.cal-event-pill.gemini-match {
+  background: rgba(139, 92, 246, 0.22);
+  color: #e9d5ff;
+  border-left: 3px solid #c084fc;
 }
 
 /* =====================================================================
