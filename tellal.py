@@ -31,8 +31,13 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.3.0"
+SURUM = "1.4.0"
 SURUM_NOTLARI = {
+    "1.4.0": [
+        "Ufuk & Yiğit arasında canlı 'Chat' sohbet kutusu eklendi.",
+        "Menüye 'Chat' seçeneği getirilerek anlık mesajlaşma sağlandı.",
+        "Gelecek Yayınlar altına WhatsApp stili mesaj geçmişi kutusu entegre edildi.",
+    ],
     "1.3.0": [
         "Ana menü altına 'Gelecek Yayınlar' canlı takvim paneli eklendi.",
         "Ufuk için adım adım 'Yayın Ekle' sihirbazı ve 'Takvimi Temizle' seçenekleri eklendi.",
@@ -1851,6 +1856,186 @@ def duyurulari_yapildi_isaretle():
 
 
 # =====================================================================
+# CHAT SİSTEMİ
+# =====================================================================
+CHAT_DOSYASI = os.path.join(SCRIPT_DIR, "chat.txt")
+CHAT_SYNC_DOSYASI = os.path.join(SCRIPT_DIR, ".chat_sync")
+NTFY_TOPIC_CHAT = "tellal_chat_sync_u_y_8832"
+
+
+def chat_senkronize_et(aktif_kullanici_adi=None):
+    """Uzak sunucudaki (ntfy) en güncel chat verisini kontrol eder ve yerel chat.txt ile eşitler."""
+    son_zaman = 0
+    if os.path.exists(CHAT_SYNC_DOSYASI):
+        try:
+            with open(CHAT_SYNC_DOSYASI, "r", encoding="utf-8") as f:
+                c = f.read().strip()
+                if c.isdigit():
+                    son_zaman = int(c)
+        except Exception:
+            son_zaman = 0
+
+    url = f"https://ntfy.sh/{NTFY_TOPIC_CHAT}/json?poll=1&since=all"
+    try:
+        r = requests.get(url, timeout=3.0)
+        if r.status_code == 200 and r.text.strip():
+            en_yeni_mesaj = None
+            ilk_son_zaman = son_zaman
+            for line in r.text.strip().split("\n"):
+                if not line:
+                    continue
+                try:
+                    d = json.loads(line)
+                    if d.get("event") == "message":
+                        m_time = d.get("time", 0)
+                        if m_time >= son_zaman:
+                            en_yeni_mesaj = d
+                            son_zaman = m_time
+                except Exception:
+                    continue
+
+            if en_yeni_mesaj is not None:
+                icerik = en_yeni_mesaj.get("message", "")
+                if icerik == "__BOS_CHAT__":
+                    icerik = ""
+
+                # macOS sesli bildirimi (yeni mesaj karşı taraftan geldiyse)
+                if platform.system() == "Darwin" and aktif_kullanici_adi and son_zaman > ilk_son_zaman and ilk_son_zaman > 0:
+                    satirlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+                    if satirlar:
+                        son_satir = satirlar[-1]
+                        diger_kullanici = "Yiğit" if aktif_kullanici_adi == "Ufuk" else "Ufuk"
+                        if son_satir.startswith(f"{diger_kullanici}:"):
+                            try:
+                                temiz = son_satir.replace('"', "'")
+                                subprocess.run(
+                                    ["osascript", "-e", f'display notification "{temiz}" with title "Tellal Chat" sound name "Glass"'],
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL
+                                )
+                            except Exception:
+                                pass
+
+                with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(icerik)
+                with open(CHAT_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(str(son_zaman))
+    except Exception:
+        pass
+
+
+def chat_uzaga_gonder(icerik):
+    """Güncellenmiş chat.txt içeriğini ntfy üzerinden diğer kullanıcıya iletir."""
+    try:
+        mesaj = icerik if icerik.strip() else "__BOS_CHAT__"
+        payload = {
+            "topic": NTFY_TOPIC_CHAT,
+            "title": "Tellal Chat Güncellemesi",
+            "message": mesaj,
+            "priority": 3,
+            "tags": ["speech_balloon"]
+        }
+        r = requests.post("https://ntfy.sh", json=payload, timeout=4)
+        if r.status_code == 200:
+            try:
+                res_data = r.json()
+                t = res_data.get("time")
+                if t:
+                    with open(CHAT_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(str(t))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def chat_oku(aktif_kullanici_adi=None):
+    """Chat dosyasını senkronize edip satır satır liste olarak döndürür."""
+    chat_senkronize_et(aktif_kullanici_adi)
+    if not os.path.exists(CHAT_DOSYASI):
+        return []
+    try:
+        with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
+            return [satir.strip() for satir in f if satir.strip()]
+    except Exception:
+        return []
+
+
+def chat_mesaj_gonder(kullanici_id, kullanici_adi):
+    """Kullanıcının chat kutusuna mesaj göndermesini sağlar."""
+    diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
+    chat_senkronize_et(kullanici_adi)
+
+    console.print()
+    mesajlar = chat_oku(kullanici_adi)
+    if mesajlar:
+        formatli = []
+        for s in mesajlar[-10:]:
+            if s.startswith("Ufuk:"):
+                _, msg = s.split("Ufuk:", 1)
+                formatli.append(f"[bold cyan]Ufuk:[/bold cyan] [bold white]{escape(msg.strip())}[/bold white]")
+            elif s.startswith("Yiğit:") or s.startswith("Yigit:"):
+                prefix = "Yiğit:" if s.startswith("Yiğit:") else "Yigit:"
+                _, msg = s.split(prefix, 1)
+                formatli.append(f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]")
+            else:
+                formatli.append(f"[bold white]{escape(s)}[/bold white]")
+        sohbet_gecmisi = "\n".join(formatli) + "\n\n"
+    else:
+        sohbet_gecmisi = "[dim]Henüz sohbet mesajı yok.[/dim]\n\n"
+
+    panel_metni = (
+        sohbet_gecmisi +
+        f"[dim]• Mesajınızı yazıp Enter'a basın.\n"
+        f"• Mesajınız ana ekrandaki Chat kutusunda görünecektir.\n"
+        f"• Geri dönmek / vazgeçmek için 'g' yazın veya boş Enter'a basın.[/dim]"
+    )
+    console.print(Panel(panel_metni, title=f"[bold yellow]💬 Chat ({diger_adi} ile Sohbet)", expand=False))
+
+    mesaj = Prompt.ask(f"[bold green]{kullanici_adi}[/bold green]", default="").strip()
+
+    if not mesaj or mesaj.lower() in ("g", "geri", "q", "iptal", "exit"):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    # Gizli sohbet geçmişi temizleme komutu
+    if mesaj.lower() in ("/temizle", "/clear"):
+        try:
+            with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+                f.write("")
+            chat_uzaga_gonder("")
+            console.print("\n[bold green]✓ Sohbet geçmişi temizlendi.[/bold green]\n")
+            return
+        except Exception as e:
+            console.print(f"\n[bold red][HATA] Sohbet temizlenemedi: {e}[/bold red]\n")
+            return
+
+    # Tek satır olarak hazırla
+    mesaj = mesaj.replace("\n", " ").strip()
+    yeni_satir = f"{kullanici_adi}: {mesaj}"
+    mevcut = []
+    if os.path.exists(CHAT_DOSYASI):
+        try:
+            with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
+                mevcut = [line.strip() for line in f if line.strip()]
+        except Exception:
+            mevcut = []
+
+    mevcut.append(yeni_satir)
+    if len(mevcut) > 50:
+        mevcut = mevcut[-50:]
+
+    yeni_icerik = "\n".join(mevcut) + "\n"
+    try:
+        with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+            f.write(yeni_icerik)
+        chat_uzaga_gonder(yeni_icerik)
+        console.print(f"\n[bold green]✓ Mesaj gönderildi![/bold green]\n")
+    except Exception as e:
+        console.print(f"\n[bold red][HATA] Mesaj kaydedilemedi: {e}[/bold red]\n")
+
+
+# =====================================================================
 # ANA MENÜ
 # =====================================================================
 def ana_menu(kullanici_id, kullanici_adi):
@@ -1866,7 +2051,7 @@ def ana_menu(kullanici_id, kullanici_adi):
         if kullanici_id == "1":
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
-[bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
+[bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Yayın Ekle... 📅
 [bold cyan]5.[/bold cyan] Yayın İptal... ❌
 [bold cyan]6.[/bold cyan] Yayın Sil... 🗑️
@@ -1875,7 +2060,7 @@ def ana_menu(kullanici_id, kullanici_adi):
         else:
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
-[bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
+[bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Duyurular Yapıldı ✅
 [bold cyan]5.[/bold cyan] Çıkış"""
             gecerli_secimler = ["1", "2", "3", "4", "5", "k"]
@@ -1917,7 +2102,25 @@ def ana_menu(kullanici_id, kullanici_adi):
 
         console.print(Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
 
+        # 3. Kutu: Chat (WhatsApp mesajları gibi Yiğit: Mesaj, Ufuk: Mesaj)
+        chat_mesajlari = chat_oku(kullanici_adi)
+        if chat_mesajlari:
+            formatli_chat = []
+            for s in chat_mesajlari[-12:]:
+                if s.startswith("Ufuk:"):
+                    _, msg = s.split("Ufuk:", 1)
+                    formatli_chat.append(f"[bold cyan]Ufuk:[/bold cyan] [bold white]{escape(msg.strip())}[/bold white]")
+                elif s.startswith("Yiğit:") or s.startswith("Yigit:"):
+                    prefix = "Yiğit:" if s.startswith("Yiğit:") else "Yigit:"
+                    _, msg = s.split(prefix, 1)
+                    formatli_chat.append(f"[bold magenta]Yiğit:[/bold magenta] [bold white]{escape(msg.strip())}[/bold white]")
+                else:
+                    formatli_chat.append(f"[bold white]{escape(s)}[/bold white]")
+            chat_metni = "\n".join(formatli_chat)
+        else:
+            chat_metni = "[dim]Henüz sohbet mesajı yok.[/dim]"
 
+        console.print(Panel(chat_metni, title="[bold yellow]💬 Chat[/bold yellow]", expand=False))
 
         ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
 
@@ -1939,7 +2142,7 @@ def ana_menu(kullanici_id, kullanici_adi):
             elif ana_secim == "2":
                 radio_mocas_menu()
             elif ana_secim == "3":
-                bildirim_gonder(kullanici_id)
+                chat_mesaj_gonder(kullanici_id, kullanici_adi)
             elif ana_secim == "4":
                 takvime_yayin_ekle()
             elif ana_secim == "5":
@@ -1968,7 +2171,7 @@ def ana_menu(kullanici_id, kullanici_adi):
             elif ana_secim == "2":
                 radio_mocas_menu()
             elif ana_secim == "3":
-                bildirim_gonder(kullanici_id)
+                chat_mesaj_gonder(kullanici_id, kullanici_adi)
             elif ana_secim == "4":
                 duyurulari_yapildi_isaretle()
             elif ana_secim == "k":

@@ -11,4 +11,6 @@ user.txt
 .son_bildirim*
 takvim.txt
 .takvim_sync*
+chat.txt
+.chat_sync*
 
