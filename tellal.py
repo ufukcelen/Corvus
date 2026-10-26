@@ -2040,6 +2040,42 @@ def chat_mesaj_gonder(kullanici_id, kullanici_adi):
         console.print(f"\n[bold red][HATA] Mesaj kaydedilemedi: {e}[/bold red]\n")
 
 
+def chat_temizle():
+    """Kullanıcı 1 (Ufuk) için chat geçmişini (chat.txt) temizler ve senkronize eder."""
+    console.print()
+    if not os.path.exists(CHAT_DOSYASI):
+        console.print("[dim yellow]Zaten silinecek bir sohbet geçmişi bulunmuyor.[/dim yellow]")
+        return
+
+    try:
+        with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
+            icerik = f.read().strip()
+        if not icerik:
+            console.print("[dim yellow]Sohbet geçmişi zaten boş.[/dim yellow]")
+            return
+    except Exception:
+        pass
+
+    panel_metni = (
+        "[bold red]Tüm sohbet geçmişi (chat.txt) kalıcı olarak silinecektir.[/bold red]\n\n"
+        "[dim]Bu işlem her iki tarafın (Ufuk & Yiğit) ekranındaki sohbet kutusunu temizler.[/dim]"
+    )
+    console.print(Panel(panel_metni, title="[bold red]🗑️ Chat'i Sil[/bold red]", expand=False))
+
+    onay = Confirm.ask("[bold red]Sohbet geçmişini silmek istediğinize emin misiniz?[/bold red]", default=False)
+    if not onay:
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    try:
+        with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+            f.write("")
+        chat_uzaga_gonder("")
+        console.print("\n[bold green]✓ Chat geçmişi başarıyla silindi ve temizlendi.[/bold green]\n")
+    except Exception as e:
+        console.print(f"\n[bold red][HATA] Chat silinemedi: {e}[/bold red]\n")
+
+
 # =====================================================================
 # ANA MENÜ
 # =====================================================================
@@ -2057,11 +2093,12 @@ def ana_menu(kullanici_id, kullanici_adi):
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Chat 💬
-[bold cyan]4.[/bold cyan] Yayın Ekle... 📅
-[bold cyan]5.[/bold cyan] Yayın İptal... ❌
-[bold cyan]6.[/bold cyan] Yayın Sil... 🗑️
-[bold cyan]7.[/bold cyan] Çıkış"""
-            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "k"]
+[bold cyan]4.[/bold cyan] Chat'i Sil... 🗑️
+[bold cyan]5.[/bold cyan] Yayın Ekle... 📅
+[bold cyan]6.[/bold cyan] Yayın İptal... ❌
+[bold cyan]7.[/bold cyan] Yayın Sil... 🗑️
+[bold cyan]8.[/bold cyan] Çıkış"""
+            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k"]
         else:
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
@@ -2130,7 +2167,7 @@ def ana_menu(kullanici_id, kullanici_adi):
         ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
 
         if kullanici_id == "1":
-            if ana_secim == "7":
+            if ana_secim == "8":
                 console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
                 if platform.system() == "Darwin":
                     try:
@@ -2149,10 +2186,12 @@ def ana_menu(kullanici_id, kullanici_adi):
             elif ana_secim == "3":
                 chat_mesaj_gonder(kullanici_id, kullanici_adi)
             elif ana_secim == "4":
-                takvime_yayin_ekle()
+                chat_temizle()
             elif ana_secim == "5":
-                yayin_iptal_et()
+                takvime_yayin_ekle()
             elif ana_secim == "6":
+                yayin_iptal_et()
+            elif ana_secim == "7":
                 yayin_sil()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
