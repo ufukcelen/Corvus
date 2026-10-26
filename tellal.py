@@ -31,8 +31,20 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.0.6"
+SURUM = "1.1.0"
 SURUM_NOTLARI = {
+    "1.1.0": [
+        "Masaüstünde tek tıkla çalışan 'Tellal.app' başlatıcısı ve özel uygulama logosu eklendi.",
+        "Tüm render ve SEO çıktıları masaüstünde gün/ay adıyla otomatik klasörlenir hale getirildi ({gün} {ay}_{program_adi}).",
+        "GitHub güncelleme denetimi interaktif yapıldı: Güncelleme varsa sorulur, reddedilirse eski sürüm uyarısıyla devam edilir.",
+        "Açılışa retro Tellal ASCII logosu ve kanal etiketleri (/uykusuztosba /radiomocas) eklendi.",
+        "Radio Mocas menüsüne 'Albert ve Cem' canlı yayın otomasyonu (albert.json, albertSahne render ve albertSeo.txt) eklendi.",
+        "Tarih (YYYY-MM-DD) ve saat (SS:DD) formatı doğrulaması eklenerek hatalı girişlerin programı çökertmesi önlendi.",
+        "Hashtag çakışması ve çift diyez (##) hatası düzeltildi.",
+        "saat_al() fonksiyonundaki varsayılan değer parametre hatası giderildi.",
+        "Render bitiş sesi asenkron yapılarak terminal donması engellendi.",
+        "Dosya kilitleme ve Pillow görsel bellek sızıntıları temizlendi.",
+    ],
     "1.0.6": [
         "Radio Mocas menüsüne 2. seçenek olarak 'Albert ve Cem' canlı yayın otomasyonu eklendi.",
         "albert.json ve albertSeo.txt otomatik üretim ve planlama desteği tamamlandı.",
@@ -172,6 +184,16 @@ def guncelleme_kontrol():
     if not yapilacak and not script_girdisi:
         return
     toplam = len(yapilacak) + (1 if script_girdisi else 0)
+    console.print(f"\n[bold cyan][GÜNCELLEME][/bold cyan] GitHub üzerinde yeni bir güncelleme mevcut! ([bold yellow]{toplam}[/bold yellow] dosya)")
+    try:
+        onay = Confirm.ask("[bold green]Yeni sürüme güncellemek istiyor musunuz?[/bold green]", default=True)
+    except Exception:
+        onay = True
+
+    if not onay:
+        console.print("[bold yellow][UYARI] Güncelleme atlandı. Eski sürümdesiniz, en kısa sürede güncellesen iyi olur![/bold yellow]\n")
+        return
+
     console.print(f"[bold cyan][GÜNCELLEME][/bold cyan] {toplam} dosya indirilecek/güncellenecek...")
     basarili = 0
     for i, (yol, hedef, sha) in enumerate(yapilacak, 1):
@@ -186,12 +208,12 @@ def guncelleme_kontrol():
         console.print(f"[dim]({toplam}/{toplam}) {escape(yol)} (programın kendisi)[/dim]")
         try:
             _guvenli_yaz(hedef, _github_indir(yol, sha))
-            console.print("[bold green][GÜNCELLEME][/bold green] Program yenilendi, yeniden başlatılıyor...")
+            console.print("[bold green][GÜNCELLEME][/bold green] Program başarıyla güncellendi! Yeniden başlatılıyor...\n")
             os.execv(sys.executable, [sys.executable, hedef] + sys.argv[1:])
         except Exception as e:
             console.print(f"[bold yellow][UYARI][/bold yellow] Program dosyası güncellenemedi: {escape(str(e))}")
     if basarili:
-        console.print(f"[bold green][GÜNCELLEME][/bold green] {basarili} dosya güncellendi.")
+        console.print(f"[bold green][GÜNCELLEME][/bold green] {basarili} dosya güncellendi. Program açılıyor...\n")
 
 
 guncelleme_kontrol()
@@ -337,12 +359,11 @@ def masaustu_app_olustur():
                 os.remove(assets_car)
             except Exception:
                 pass
-        if os.path.exists(icns_kaynak) and (yeni_olusturuldu or not os.path.exists(icns_hedef)):
+        if os.path.exists(icns_kaynak):
             shutil.copy2(icns_kaynak, icns_hedef)
             subprocess.run(["touch", app_yolu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        icon_rsrc = os.path.join(app_yolu, "Icon\r")
-        if (yeni_olusturuldu or not os.path.exists(icon_rsrc)) and os.path.exists(png_kaynak):
+        if os.path.exists(png_kaynak):
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
