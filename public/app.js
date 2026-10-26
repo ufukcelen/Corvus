@@ -519,15 +519,21 @@ function setupEventListeners() {
   if (closeModalBtn) closeModalBtn.addEventListener("click", closeAddModal);
   if (cancelModalBtn) cancelModalBtn.addEventListener("click", closeAddModal);
 
-  if (modalOverlay) {
-    modalOverlay.addEventListener("click", (e) => {
-      if (e.target === modalOverlay) closeAddModal();
+  // Etkinlik Detay Modalı Kapatma Butonu
+  const closeEventModalBtn = document.getElementById("closeEventModalBtn");
+  if (closeEventModalBtn) closeEventModalBtn.addEventListener("click", closeEventModal);
+
+  // Form submit & Klavyeden Enter'a basınca yayını oluşturma
+  const form = document.getElementById("addBroadcastForm");
+  if (form) {
+    form.addEventListener("submit", yeniYayinKaydet);
+    form.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        form.requestSubmit();
+      }
     });
   }
-
-  // Form submit
-  const form = document.getElementById("addBroadcastForm");
-  if (form) form.addEventListener("submit", yeniYayinKaydet);
 
   // Manuel Yenile Butonu
   const syncBtn = document.getElementById("manualSyncBtn");
@@ -659,11 +665,13 @@ function setupGunOptions() {
   gunSelect.innerHTML = optionsHtml;
 }
 
-function openAddModal() {
+function openAddModal(resetProgram = true) {
   const modal = document.getElementById("addBroadcastModal");
   if (modal) {
     modal.classList.add("open");
-    guncelleProgramListesi();
+    if (resetProgram) {
+      guncelleProgramListesi();
+    }
     const pSelect = document.getElementById("inputProgramSelect");
     if (pSelect) pSelect.focus();
   }
@@ -764,8 +772,8 @@ function renderMonthCalendar() {
         const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
         return `
           <div class="cal-event-pill gemini-match ${tipClass}" 
-               title="${escapeHtml(m.aciklama)}"
-               onclick="event.stopPropagation(); state.calendarMonth = ${prevMonthIdx}; state.calendarYear = ${prevMonthYear}; renderMonthCalendar();">
+               title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
+               onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
             <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
@@ -823,8 +831,8 @@ function renderMonthCalendar() {
 
         return `
           <div class="cal-event-pill ${chClass} ${statusClass}" 
-               title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)})"
-               onclick="event.stopPropagation(); filterByCalendarBroadcast('${escapeHtml(b.yayinAdi)}')">
+               title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)}) (Detay ve İşlemler)"
+               onclick="event.stopPropagation(); openBroadcastModal(${b.index})">
             <span class="pill-time">${escapeHtml(b.saat)}</span>
             <span class="pill-title">${escapeHtml(b.yayinAdi)}</span>
           </div>
@@ -840,8 +848,8 @@ function renderMonthCalendar() {
 
         return `
           <div class="cal-event-pill gemini-match ${tipClass}" 
-               title="${escapeHtml(m.aciklama)} (Tıkla: Bu maç için canlı yayın ekle)"
-               onclick="event.stopPropagation(); geminiMacaYayinEkle('${escapeHtml(m.takimlar)}', '${escapeHtml(m.saat)}', ${d}, ${state.calendarMonth})">
+               title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
+               onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
             <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
@@ -880,8 +888,8 @@ function renderMonthCalendar() {
         const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
         return `
           <div class="cal-event-pill gemini-match ${tipClass}" 
-               title="${escapeHtml(m.aciklama)}"
-               onclick="event.stopPropagation(); state.calendarMonth = ${nextMonthIdx}; state.calendarYear = ${nextMonthYear}; renderMonthCalendar();">
+               title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
+               onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
             <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
@@ -1090,10 +1098,12 @@ async function senkronizeGeminiMatches() {
     const res = await fetch(`${FIREBASE_DB_URL}/gemini_matches.json?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && Array.isArray(data.matches) && data.matches.length > 0) {
-        state.geminiMatches = data.matches;
-        localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
-        renderMonthCalendar();
+      if (data && Array.isArray(data.matches)) {
+        if (JSON.stringify(data.matches) !== JSON.stringify(state.geminiMatches)) {
+          state.geminiMatches = data.matches;
+          localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
+          renderMonthCalendar();
+        }
       }
     }
   } catch (err) {
@@ -1140,35 +1150,264 @@ async function runGeminiAiMatchScanner(isManual = false) {
   }
 }
 
-function geminiMacaYayinEkle(takimlar, saat, gun, ayIdx) {
+// Saat hesaplama yardımcısı: Belirtilen saatten 15 dakika öncesini hesaplar (Örn: "20:00" -> "19:45")
+function hesapla15DkOnce(saatStr) {
+  if (!saatStr || typeof saatStr !== "string" || !saatStr.includes(":")) {
+    return "19:45";
+  }
+  const parts = saatStr.trim().split(":");
+  let saat = parseInt(parts[0], 10);
+  let dakika = parseInt(parts[1], 10);
+  if (isNaN(saat) || isNaN(dakika)) return "19:45";
+  dakika -= 15;
+  if (dakika < 0) {
+    dakika += 60;
+    saat = (saat - 1 + 24) % 24;
+  }
+  return `${String(saat).padStart(2, "0")}:${String(dakika).padStart(2, "0")}`;
+}
+
+// 1. Gemini AI Maç Etkinliği Detay Modalı (Ev Sahibi - Deplasman, Lig, Saat, Butonlar)
+function openGeminiMatchModal(matchId) {
+  const match = (state.geminiMatches || []).find(m => m.id === matchId);
+  if (!match) return;
+
+  const modal = document.getElementById("eventActionModal");
+  const modalTitleText = document.getElementById("eventModalTitleText");
+  const modalIcon = document.getElementById("eventModalIcon");
+  const modalBody = document.getElementById("eventModalBody");
+  const modalFooter = document.getElementById("eventModalFooter");
+
+  if (!modal || !modalBody || !modalFooter) return;
+
+  const [evSahibi, deplasman] = match.takimlar.includes(" - ") 
+    ? match.takimlar.split(" - ") 
+    : [match.takimlar, ""];
+
+  const ayAdi = AY_ISIMLERI[match.ay] || "";
+  const gunDate = new Date(match.yil, match.ay, match.gun);
+  const gunAdi = GUN_ADLARI[(gunDate.getDay() + 6) % 7] || "";
+  const formattedTarih = `${match.gun} ${ayAdi} ${match.yil} (${gunAdi})`;
+
+  if (modalIcon) modalIcon.textContent = match.tip === "milli" ? "🇹🇷" : "⚽";
+  if (modalTitleText) modalTitleText.textContent = "Gemini AI Maç Etkinliği";
+
+  modalBody.innerHTML = `
+    <div class="event-detail-card">
+      <div class="event-detail-header-card">
+        <div class="event-detail-teams">${escapeHtml(evSahibi)} ${deplasman ? `<span style="color:var(--text-muted);font-weight:400;font-size:0.95rem;margin:0 6px;">vs</span> ${escapeHtml(deplasman)}` : ""}</div>
+        <div class="event-detail-sub">
+          <span class="ai-badge">${escapeHtml(match.lig || "Futbol")}</span>
+          <span class="stat-badge primary">${escapeHtml(match.saat)}</span>
+        </div>
+      </div>
+
+      <div class="event-detail-grid">
+        <div class="event-detail-row">
+          <span class="event-detail-label">Ev Sahibi</span>
+          <span class="event-detail-value">${escapeHtml(evSahibi)}</span>
+        </div>
+        <div class="event-detail-row">
+          <span class="event-detail-label">Deplasman</span>
+          <span class="event-detail-value">${escapeHtml(deplasman || "-")}</span>
+        </div>
+        <div class="event-detail-row">
+          <span class="event-detail-label">Lig / Turnuva</span>
+          <span class="event-detail-value">${escapeHtml(match.lig || "Süper Lig")}</span>
+        </div>
+        <div class="event-detail-row">
+          <span class="event-detail-label">Maç Saati</span>
+          <span class="event-detail-value">⏰ ${escapeHtml(match.saat)}</span>
+        </div>
+      </div>
+
+      <div class="event-detail-row" style="grid-column: 1 / -1;">
+        <span class="event-detail-label">Tarih</span>
+        <span class="event-detail-value">📅 ${escapeHtml(formattedTarih)}</span>
+      </div>
+    </div>
+  `;
+
+  modalFooter.innerHTML = `
+    <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
+    <button type="button" class="btn btn-danger" onclick="removeGeminiMatch('${escapeHtml(match.id)}')">
+      <span>🗑️</span>
+      <span>Maçı Takvimden Kaldır</span>
+    </button>
+    <button type="button" class="btn btn-primary" onclick="geminiMacaYayinEkle('${escapeHtml(match.id)}')">
+      <span>➕</span>
+      <span>Bu Maç İçin Yayın Ekle</span>
+    </button>
+  `;
+
+  modal.classList.add("open");
+}
+
+// 2. Maçı Takvimden Kaldırma (state, localStorage ve Firebase RTDB gemini_matches.json tablosundan silinir)
+async function removeGeminiMatch(matchId) {
+  const matchIndex = (state.geminiMatches || []).findIndex(m => m.id === matchId);
+  if (matchIndex === -1) return;
+
+  const match = state.geminiMatches[matchIndex];
+  state.geminiMatches.splice(matchIndex, 1);
+
+  // Yerel hafızaya kaydet
+  localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
+
+  // Modalı kapat ve takvim hücresinden anında kaybolmasını sağla
+  closeEventModal();
+  renderMonthCalendar();
+
+  // Firebase gemini_matches.json tablosundan sil/güncelle
+  try {
+    await fetch(`${FIREBASE_DB_URL}/gemini_matches.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        matches: state.geminiMatches,
+        son_guncelleme: Math.floor(Date.now() / 1000),
+        kaynak: "Web Takvimden Kaldırıldı"
+      })
+    });
+  } catch (err) {
+    console.warn("Gemini match silme hatası:", err);
+  }
+
+  showToast(`🗑️ "${match.takimlar}" maçı takvimden kaldırıldı.`, "info");
+}
+
+// 3. Gerçek Yayın Detay Modalı (Takvimden çıkarma / silme seçeneği)
+function openBroadcastModal(index) {
+  if (index < 0 || index >= state.yayinlar.length) return;
+  const item = parseYayinSatiri(state.yayinlar[index], index);
+
+  const modal = document.getElementById("eventActionModal");
+  const modalTitleText = document.getElementById("eventModalTitleText");
+  const modalIcon = document.getElementById("eventModalIcon");
+  const modalBody = document.getElementById("eventModalBody");
+  const modalFooter = document.getElementById("eventModalFooter");
+
+  if (!modal || !modalBody || !modalFooter) return;
+
+  const chClass = item.kanal === "Uykusuz Tosba" ? "badge-tosba" : "badge-mocas";
+  let statusBadge = `<span class="stat-badge warning">Planlandı</span>`;
+  if (item.isDone) {
+    statusBadge = `<span class="stat-badge success">Tamamlandı ✅</span>`;
+  } else if (item.isCanceled) {
+    statusBadge = `<span class="stat-badge danger">İptal Edildi ❌</span>`;
+  }
+
+  if (modalIcon) modalIcon.textContent = "📺";
+  if (modalTitleText) modalTitleText.textContent = "Yayın Detayı & İşlemler";
+
+  modalBody.innerHTML = `
+    <div class="event-detail-card">
+      <div class="event-detail-header-card">
+        <div class="event-detail-teams">${escapeHtml(item.yayinAdi)}</div>
+        <div class="event-detail-sub">
+          <span class="channel-badge ${chClass}">${escapeHtml(item.kanal)}</span>
+          ${statusBadge}
+        </div>
+      </div>
+
+      <div class="event-detail-grid">
+        <div class="event-detail-row">
+          <span class="event-detail-label">Yayın Günü</span>
+          <span class="event-detail-value">📅 ${escapeHtml(item.gun)}</span>
+        </div>
+        <div class="event-detail-row">
+          <span class="event-detail-label">Yayın Saati</span>
+          <span class="event-detail-value">⏰ ${escapeHtml(item.saat)}</span>
+        </div>
+      </div>
+
+      <div class="event-detail-row" style="grid-column: 1 / -1;">
+        <span class="event-detail-label">Ek Not / Bilgi</span>
+        <span class="event-detail-value">${escapeHtml(item.bilgi || "Ek bilgi belirtilmedi")}</span>
+      </div>
+    </div>
+  `;
+
+  modalFooter.innerHTML = `
+    <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
+    <button type="button" class="btn btn-danger" onclick="silYayinFromModal(${item.index})">
+      <span>🗑️</span>
+      <span>Yayını Takvimden Kaldır / Sil</span>
+    </button>
+  `;
+
+  modal.classList.add("open");
+}
+
+function silYayinFromModal(index) {
+  closeEventModal();
+  silYayin(index);
+}
+
+function closeEventModal() {
+  const modal = document.getElementById("eventActionModal");
+  if (modal) modal.classList.remove("open");
+}
+
+// 4. Gemini Maçı İçin Yayın Oluşturma:
+// - "Canlı Maç Sohbetleri" (Uykusuz Tosba) seçili form oluşturur
+// - Yayın saatini maç saatinden 15 dk önceye ayarlar
+// - Ek not bilgi bölümüne "X - Y takımı maçı" yazar
+function geminiMacaYayinEkle(arg1, argSaat, argGun, argAyIdx) {
+  closeEventModal();
+
+  let match = null;
+  if (typeof arg1 === "string" && !argSaat) {
+    match = (state.geminiMatches || []).find(m => m.id === arg1);
+  }
+
+  let takimlar = match ? match.takimlar : arg1;
+  let saat = match ? match.saat : (argSaat || "20:00");
+  let gun = match ? match.gun : (argGun || 1);
+  let ayIdx = match ? match.ay : (argAyIdx !== undefined ? argAyIdx : state.calendarMonth);
+  let yil = match ? match.yil : state.calendarYear;
+
   const ayAdi = AY_ISIMLERI[ayIdx] || "";
-  const dayDate = new Date(state.calendarYear, ayIdx, gun);
+  const dayDate = new Date(yil, ayIdx, gun);
   const dayName = GUN_ADLARI[(dayDate.getDay() + 6) % 7] || "";
   const targetGunVal = `${gun} ${ayAdi} (${dayName})`;
 
+  // 1. Kanalı "Uykusuz Tosba" seç
   const kanalSelect = document.getElementById("inputKanal");
   if (kanalSelect) kanalSelect.value = "Uykusuz Tosba";
 
+  // 2. Uykusuz Tosba program listesini yükle
+  guncelleProgramListesi();
+
+  // 3. "Canlı Maç Sohbetleri" seçili olsun
   const selectProgram = document.getElementById("inputProgramSelect");
   const customProgram = document.getElementById("inputCustomProgram");
   const customGroup = document.getElementById("customProgramGroup");
 
   if (selectProgram) {
-    let matched = false;
-    for (let opt of selectProgram.options) {
-      if (opt.value.includes("Maç") || opt.value.includes("Canlı Maç")) {
-        selectProgram.value = opt.value;
-        matched = true;
-        break;
+    selectProgram.value = "Canlı Maç Sohbetleri";
+    if (selectProgram.options && selectProgram.options.length > 0) {
+      let matched = false;
+      for (let opt of selectProgram.options) {
+        if (opt.value === "Canlı Maç Sohbetleri" || opt.value.includes("Canlı Maç")) {
+          selectProgram.value = opt.value;
+          matched = true;
+          break;
+        }
       }
-    }
-    if (!matched) {
-      selectProgram.value = "__CUSTOM__";
-      if (customGroup) customGroup.style.display = "block";
-      if (customProgram) customProgram.value = `Canlı Maç: ${takimlar}`;
+      if (!matched) {
+        selectProgram.value = "__CUSTOM__";
+        if (customGroup) customGroup.style.display = "block";
+        if (customProgram) customProgram.value = "Canlı Maç Sohbetleri";
+      } else if (customGroup) {
+        customGroup.style.display = "none";
+      }
+    } else if (customGroup) {
+      customGroup.style.display = "none";
     }
   }
 
+  // 4. Günü eşle
   const gunSelect = document.getElementById("inputGun");
   if (gunSelect) {
     let found = false;
@@ -1188,14 +1427,20 @@ function geminiMacaYayinEkle(takimlar, saat, gun, ayIdx) {
     }
   }
 
+  // 5. Yayının saatini maçın saatinden 15dk önceye ayarla
+  const yayinSaati = hesapla15DkOnce(saat);
   const saatInput = document.getElementById("inputSaat");
-  if (saatInput) saatInput.value = saat;
+  if (saatInput) saatInput.value = yayinSaati;
 
+  // 6. Ek not bilgi bölümüne "X - Y takımı maçı" yaz
   const bilgiInput = document.getElementById("inputBilgi");
-  if (bilgiInput) bilgiInput.value = `${takimlar} Canlı Yayın ⚽`;
+  if (bilgiInput) {
+    bilgiInput.value = `${takimlar} maçı`;
+  }
 
-  openAddModal();
-  showToast(`⚽ "${takimlar}" seçildi. Bu maç için yayın takvimine ekleme yapabilirsiniz.`, "info");
+  // 7. Modalı aç (seçilen program ve saati koruyarak)
+  openAddModal(false);
+  showToast(`⚽ "${takimlar}" maçı için Canlı Maç Sohbeti yayını 15 dk öncesine (${yayinSaati}) planlandı.`, "info");
 }
 
 function checkGeminiAiAutoRun() {

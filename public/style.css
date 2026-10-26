@@ -260,6 +260,19 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.35);
+  border: none;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.5);
+  filter: brightness(1.1);
+}
+
 .btn-gemini-ai {
   background: linear-gradient(135deg, #8b5cf6, #ec4899, #3b82f6);
   background-size: 200% 200%;
@@ -814,7 +827,76 @@ body {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  flex-wrap: wrap;
   background: rgba(0, 0, 0, 0.2);
+}
+
+/* Etkinlik Detay Modalı */
+.event-modal-box {
+  max-width: 520px;
+}
+
+.event-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.event-detail-header-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.event-detail-teams {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.event-detail-sub {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.event-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.event-detail-row {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-detail-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.event-detail-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+  word-break: break-word;
 }
 
 /* Toast Bildirim */

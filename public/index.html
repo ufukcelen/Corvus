@@ -8,7 +8,7 @@
   <meta name="description"
     content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=4.8">
+  <link rel="stylesheet" href="style.css?v=4.9">
   <script>
     (function() {
       try {
@@ -281,11 +281,30 @@
     </div>
   </div>
 
+  <!-- Etkinlik & Maç Detay Modalı (Takvimden Kaldırma & Yayın Ekleme) -->
+  <div class="modal-overlay" id="eventActionModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+    <div class="modal-box event-modal-box">
+      <div class="modal-header">
+        <h3 id="eventModalTitle">
+          <span id="eventModalIcon">⚽</span>
+          <span id="eventModalTitleText">Etkinlik Detayı</span>
+        </h3>
+        <button class="close-btn" id="closeEventModalBtn" aria-label="Kapat">&times;</button>
+      </div>
+      <div class="modal-body" id="eventModalBody">
+        <!-- JS ile dinamik doldurulur -->
+      </div>
+      <div class="modal-footer" id="eventModalFooter">
+        <!-- JS ile dinamik doldurulur -->
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Bildirim Kapsayıcısı -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=4.8"></script>
+  <script src="app.js?v=4.9"></script>
 </body>
 
 </html>
