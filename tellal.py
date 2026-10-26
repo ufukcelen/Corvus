@@ -1441,15 +1441,23 @@ YAYIN_SECENEKLERI = [
     "Aklımdaki Filmler"
 ]
 
-HAFTANIN_GUNLERI = [
-    "Pazartesi",
-    "Salı",
-    "Çarşamba",
-    "Perşembe",
-    "Cuma",
-    "Cumartesi",
-    "Pazar"
-]
+def dinamik_gunleri_al():
+    """Bugünden itibaren başlayan 7 günlük listeyi döndürür. (Örn: bugün Perşembe ise: Bugün (Perşembe), Cuma, Cumartesi...)"""
+    gunler = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
+    bugun_idx = datetime.now(timezone(timedelta(hours=3))).weekday()
+    sonuc = []
+    for i in range(7):
+        idx = (bugun_idx + i) % 7
+        gun_adi = gunler[idx]
+        if i == 0:
+            etiket = f"Bugün ({gun_adi})"
+            deger = f"Bugün ({gun_adi})"
+        else:
+            etiket = gun_adi
+            deger = gun_adi
+        sonuc.append((etiket, deger))
+    return sonuc
+
 
 
 def takvim_senkronize_et():
@@ -1561,20 +1569,21 @@ def takvime_yayin_ekle():
 
     secilen_yayin = YAYIN_SECENEKLERI[int(yayin_secim) - 1]
 
-    # 2. Adım: Yayın Günü Seçimi
+    # 2. Adım: Yayın Günü Seçimi (Bugünden itibaren 7 gün)
+    dinamik_gunler = dinamik_gunleri_al()
     console.print()
-    gun_satirlari = [f"[bold cyan]{i}.[/bold cyan] {gun}" for i, gun in enumerate(HAFTANIN_GUNLERI, 1)]
-    gun_satirlari.append(f"[bold cyan]{len(HAFTANIN_GUNLERI) + 1}.[/bold cyan] Geri")
+    gun_satirlari = [f"[bold cyan]{i}.[/bold cyan] {etiket}" for i, (etiket, _) in enumerate(dinamik_gunler, 1)]
+    gun_satirlari.append(f"[bold cyan]{len(dinamik_gunler) + 1}.[/bold cyan] Geri")
     console.print(Panel("\n".join(gun_satirlari), title=f"[bold yellow]📅 2. Adım: {secilen_yayin} için Yayın Günü Seçin", expand=False))
 
-    gecerli_gun_secimleri = [str(i) for i in range(1, len(HAFTANIN_GUNLERI) + 2)]
+    gecerli_gun_secimleri = [str(i) for i in range(1, len(dinamik_gunler) + 2)]
     gun_secim = Prompt.ask("[bold green]Gün seçin[/bold green]", choices=gecerli_gun_secimleri)
 
-    if gun_secim == str(len(HAFTANIN_GUNLERI) + 1):
+    if gun_secim == str(len(dinamik_gunler) + 1):
         console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
         return
 
-    secilen_gun = HAFTANIN_GUNLERI[int(gun_secim) - 1]
+    secilen_gun = dinamik_gunler[int(gun_secim) - 1][1]
 
     # 3. Adım: Yayın Saati Belirleme
     console.print()
@@ -1596,10 +1605,30 @@ def takvime_yayin_ekle():
             break
         console.print("[bold red][HATA][/bold red] Lütfen saati [bold yellow]SS:DD[/bold yellow] formatında girin (Örn: 21:00, 20:30).")
 
+    # 4. Adım: Yayın Bilgisi / Notu Belirleme
+    console.print()
+    bilgi_paneli = (
+        f"[bold cyan]Yayın :[/bold cyan] [bold white]{secilen_yayin}[/bold white]\n"
+        f"[bold cyan]Gün   :[/bold cyan] [bold white]{secilen_gun}[/bold white]\n"
+        f"[bold cyan]Saat  :[/bold cyan] [bold white]{secilen_saat}[/bold white]\n\n"
+        "[dim]Yayın hakkında ek bilgi veya not yazın (İsteğe bağlı).\n"
+        "Eklemek istemiyorsanız doğrudan Enter'a basıp geçebilirsiniz.\n"
+        "Vazgeçmek için 'g' veya 'q' yazabilirsiniz.[/dim]"
+    )
+    console.print(Panel(bilgi_paneli, title="📝 4. Adım: Bilgi / Not Ekleyin", expand=False))
+
+    bilgi = Prompt.ask("[bold green]Bilgi[/bold green]", default="").strip()
+    if bilgi.lower() in ("g", "geri"):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
     # Mevcut takvim verilerini oku ve numaralandırarak ekle
     mevcut_yayinlar = takvim_oku()
     siradaki_no = len(mevcut_yayinlar) + 1
-    yeni_satir = f"{siradaki_no}-) {secilen_yayin} - {secilen_gun} - {secilen_saat}"
+    if bilgi:
+        yeni_satir = f"{siradaki_no}-) {secilen_yayin} - {secilen_gun} - {secilen_saat} | Bilgi: {bilgi}"
+    else:
+        yeni_satir = f"{siradaki_no}-) {secilen_yayin} - {secilen_gun} - {secilen_saat}"
 
     mevcut_yayinlar.append(yeni_satir)
     yeni_icerik = "\n".join(mevcut_yayinlar) + "\n"
@@ -1663,21 +1692,41 @@ def ana_menu(kullanici_id, kullanici_adi):
 
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        # 2. Kutu: Gelecek Yayınlar
+        # 2. Kutu: Gelecek Yayınlar & 3. Kutu: Yayın Bilgisi
         yayin_listesi = takvim_oku()
-        if yayin_listesi:
-            formatli_satirlar = []
-            for satir in yayin_listesi:
-                if "-)" in satir:
-                    no, rest = satir.split("-)", 1)
-                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]")
-                else:
-                    formatli_satirlar.append(f"[bold white]{satir}[/bold white]")
-            liste_metni = "\n".join(formatli_satirlar)
-        else:
-            liste_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
+        yayin_formatli = []
+        bilgi_formatli = []
 
-        console.print(Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
+        if yayin_listesi:
+            for satir in yayin_listesi:
+                if " | Bilgi: " in satir:
+                    ana_kisim, bilgi_kismi = satir.split(" | Bilgi: ", 1)
+                else:
+                    ana_kisim, bilgi_kismi = satir, ""
+
+                # 2. Kutu (Yayın Satırı)
+                if "-)" in ana_kisim:
+                    no, rest = ana_kisim.split("-)", 1)
+                    yayin_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]")
+                    yayin_adi = rest.strip().split(" - ")[0] if " - " in rest else rest.strip()
+                    if bilgi_kismi:
+                        bilgi_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold yellow]{yayin_adi}:[/bold yellow] [bold white]{bilgi_kismi}[/bold white]")
+                    else:
+                        bilgi_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold yellow]{yayin_adi}:[/bold yellow] [dim]Ek not yok[/dim]")
+                else:
+                    yayin_formatli.append(f"[bold white]{ana_kisim}[/bold white]")
+                    if bilgi_kismi:
+                        bilgi_formatli.append(f"[bold white]{bilgi_kismi}[/bold white]")
+
+            yayin_metni = "\n".join(yayin_formatli)
+            bilgi_metni = "\n".join(bilgi_formatli)
+        else:
+            yayin_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
+            bilgi_metni = "[dim]Henüz eklenmiş bir yayın bilgisi veya not bulunmuyor.[/dim]"
+
+        console.print(Panel(yayin_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
+        console.print(Panel(bilgi_metni, title="[bold yellow]📝 Yayın Bilgileri & Notlar[/bold yellow]", expand=False))
+
 
         ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
 
