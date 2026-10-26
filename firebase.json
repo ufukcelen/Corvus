@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "site": "tellal",
     "public": "public",
     "ignore": [
       "firebase.json",
