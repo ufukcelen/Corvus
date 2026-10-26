@@ -1544,8 +1544,11 @@ def takvim_senkronize_et():
         res_fb = requests.get(url_fb, timeout=2.5)
         if res_fb.status_code == 200:
             data = res_fb.json()
-            if isinstance(data, dict) and "satirlar" in data:
-                satirlar = data.get("satirlar") or []
+            if isinstance(data, dict):
+                if data.get("bos_mu"):
+                    satirlar = []
+                else:
+                    satirlar = [s for s in (data.get("satirlar") or []) if s and s.strip()]
                 icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
                 with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
                     f.write(icerik)
@@ -1599,11 +1602,12 @@ def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
     """Güncellenmiş takvim.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""
     satirlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
 
-    # 1. Birincil: Firebase Realtime Database'e kaydet
+    # 1. Birincil: Firebase Realtime Database'e kaydet (bos_mu bayrağı boş listeyi garantiye alır)
     try:
         url_fb = f"{FIREBASE_DB_URL}/takvim.json"
         payload_fb = {
             "satirlar": satirlar,
+            "bos_mu": len(satirlar) == 0,
             "son_guncelleme": int(datetime.now(timezone.utc).timestamp()),
             "guncelleyen": guncelleyen
         }

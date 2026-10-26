@@ -55,26 +55,19 @@ function switchUser() {
 
 // 2. Takvim Verisi Yükleme & Parse Etme
 async function initCalendarData() {
-  // Önce doğrudan Firebase Bulut Veritabanından çekmeyi dene
-  await senkronizeEtUzak(false);
-
-  // Eğer buluttan henüz gelmediyse veya boşsa yerel depolamaya bak
-  if (state.yayinlar.length === 0) {
-    const localData = localStorage.getItem(STORAGE_KEY_TAKVIM);
-    if (localData) {
-      try {
-        state.yayinlar = JSON.parse(localData);
-      } catch (e) {
-        state.yayinlar = [...DEFAULT_YAYINLAR];
-      }
-    } else {
-      state.yayinlar = [...DEFAULT_YAYINLAR];
-      kaydetYerel();
+  const localData = localStorage.getItem(STORAGE_KEY_TAKVIM);
+  if (localData) {
+    try {
+      state.yayinlar = JSON.parse(localData);
+    } catch (e) {
+      state.yayinlar = [];
     }
   }
-
   renderCalendar();
   updateStats();
+
+  // Doğrudan Firebase Bulut Veritabanından en güncel veriyi çek ve eşitle
+  await senkronizeEtUzak(false);
 }
 
 function kaydetYerel() {
@@ -360,6 +353,7 @@ async function yayinlariBulutaGonder(ozetMesaj = "") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         satirlar: state.yayinlar,
+        bos_mu: state.yayinlar.length === 0,
         son_guncelleme: Date.now(),
         guncelleyen: state.currentUser
       })
@@ -398,18 +392,22 @@ async function senkronizeEtUzak(bildirimVer = true) {
   const syncBtn = document.getElementById("manualSyncBtn");
   if (syncBtn) syncBtn.classList.add("rotating");
 
-  let basarili = false;
-
   // 1. Birincil ve Ana Veri Kaynağı: Firebase Realtime Database
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/takvim.json?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
-      basarili = true;
-      if (data && Array.isArray(data.satirlar)) {
+      if (data && typeof data === "object") {
+        let gelenSatirlar = [];
+        if (data.bos_mu) {
+          gelenSatirlar = [];
+        } else if (Array.isArray(data.satirlar)) {
+          gelenSatirlar = data.satirlar.filter(s => s && s.trim());
+        }
+
         // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
-        if (JSON.stringify(data.satirlar) !== JSON.stringify(state.yayinlar)) {
-          state.yayinlar = data.satirlar;
+        if (JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
+          state.yayinlar = gelenSatirlar;
           kaydetYerel();
           renderCalendar();
           updateStats();
@@ -424,40 +422,6 @@ async function senkronizeEtUzak(bildirimVer = true) {
     }
   } catch (err) {
     console.warn("Firebase RTDB okunamadı:", err);
-  }
-
-  // 2. Yalnızca Firebase'e ulaşılamadıysa ve yerel liste boşsa Ntfy fallback'i dene
-  if (!basarili && state.yayinlar.length === 0) {
-    try {
-      const url = `https://ntfy.sh/${NTFY_TOPIC_TAKVIM}/json?poll=1&since=all`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const text = await res.text();
-        const lines = text.trim().split("\n");
-        let enYeniMesaj = null;
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const d = JSON.parse(line);
-            if (d.event === "message" && d.time >= state.lastSyncTime) {
-              enYeniMesaj = d;
-              state.lastSyncTime = d.time;
-            }
-          } catch (e) {}
-        }
-
-        if (enYeniMesaj && enYeniMesaj.message && enYeniMesaj.message !== "__BOS_TAKVIM__") {
-          const gelenSatirlar = enYeniMesaj.message.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-          if (gelenSatirlar.length > 0 && JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
-            state.yayinlar = gelenSatirlar;
-            kaydetYerel();
-            renderCalendar();
-            updateStats();
-          }
-        }
-      }
-    } catch (err) {}
   }
 
   state.isSyncing = false;
