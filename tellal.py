@@ -1542,20 +1542,9 @@ def takvim_oku():
 
 def takvime_yayin_ekle():
     """Ufuk için adım adım yayın ekleme sihirbazı."""
-    # Başlangıç seçeneği: Yayın Ekle / Geri
-    console.print()
-    baslangic_menusu = (
-        "[bold cyan]1.[/bold cyan] Yayın Ekle\n"
-        "[bold cyan]2.[/bold cyan] Geri"
-    )
-    console.print(Panel(baslangic_menusu, title="[bold yellow]📅 Takvim İşlemi", expand=False))
-    baslangic_secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2"])
-    if baslangic_secim == "2":
-        console.print("[dim yellow]Ana menüye dönülüyor.[/dim yellow]")
-        return
-
     # 1. Adım: Yayın Adı Seçimi
     console.print()
+
     yayin_satirlari = [f"[bold cyan]{i}.[/bold cyan] {ad}" for i, ad in enumerate(YAYIN_SECENEKLERI, 1)]
     yayin_satirlari.append(f"[bold cyan]{len(YAYIN_SECENEKLERI) + 1}.[/bold cyan] Geri")
     console.print(Panel("\n".join(yayin_satirlari), title="[bold yellow]📺 1. Adım: Yayın Seçin", expand=False))
@@ -1692,10 +1681,9 @@ def ana_menu(kullanici_id, kullanici_adi):
 
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        # 2. Kutu: Gelecek Yayınlar & 3. Kutu: Yayın Bilgisi
+        # 2. Kutu: Gelecek Yayınlar (Bilgi doğrudan ilgili yayının yanında gösterilir)
         yayin_listesi = takvim_oku()
-        yayin_formatli = []
-        bilgi_formatli = []
+        formatli_satirlar = []
 
         if yayin_listesi:
             for satir in yayin_listesi:
@@ -1704,28 +1692,20 @@ def ana_menu(kullanici_id, kullanici_adi):
                 else:
                     ana_kisim, bilgi_kismi = satir, ""
 
-                # 2. Kutu (Yayın Satırı)
+                bilgi_metni = f" [bold yellow]({bilgi_kismi.strip()})[/bold yellow]" if bilgi_kismi.strip() else ""
+
                 if "-)" in ana_kisim:
                     no, rest = ana_kisim.split("-)", 1)
-                    yayin_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]")
-                    yayin_adi = rest.strip().split(" - ")[0] if " - " in rest else rest.strip()
-                    if bilgi_kismi:
-                        bilgi_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold yellow]{yayin_adi}:[/bold yellow] [bold white]{bilgi_kismi}[/bold white]")
-                    else:
-                        bilgi_formatli.append(f"[bold cyan]{no}-)[/bold cyan] [bold yellow]{yayin_adi}:[/bold yellow] [dim]Ek not yok[/dim]")
+                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]{bilgi_metni}")
                 else:
-                    yayin_formatli.append(f"[bold white]{ana_kisim}[/bold white]")
-                    if bilgi_kismi:
-                        bilgi_formatli.append(f"[bold white]{bilgi_kismi}[/bold white]")
+                    formatli_satirlar.append(f"[bold white]{ana_kisim}[/bold white]{bilgi_metni}")
 
-            yayin_metni = "\n".join(yayin_formatli)
-            bilgi_metni = "\n".join(bilgi_formatli)
+            liste_metni = "\n".join(formatli_satirlar)
         else:
-            yayin_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
-            bilgi_metni = "[dim]Henüz eklenmiş bir yayın bilgisi veya not bulunmuyor.[/dim]"
+            liste_metni = "[dim]Henüz planlanmış bir yayın yok.[/dim]"
 
-        console.print(Panel(yayin_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
-        console.print(Panel(bilgi_metni, title="[bold yellow]📝 Yayın Bilgileri & Notlar[/bold yellow]", expand=False))
+        console.print(Panel(liste_metni, title="[bold yellow]📅 Gelecek Yayınlar[/bold yellow]", expand=False))
+
 
 
         ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
