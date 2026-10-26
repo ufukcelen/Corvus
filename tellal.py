@@ -31,8 +31,14 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.1.1"
+SURUM = "1.2.0"
 SURUM_NOTLARI = {
+    "1.2.0": [
+        "Ufuk & Yiğit iki taraflı anlık masaüstü bildirim sistemi eklendi.",
+        "Açılışta otomatik kullanıcı tanımlama (user.txt) ve 'Hoş geldin' karşılama sistemi eklendi.",
+        "Program açıldığında karşı taraftan gelen yeni bildirimlerin sesli macOS bildirimi ve görsel kutuyla gösterilmesi sağlandı.",
+        "Ana menüye karşı tarafa kolay bildirim gönderme seçeneği eklendi.",
+    ],
     "1.1.1": [
         "Masaüstü 'Tellal.app' başlatıcısına otomatik odaklanma (activate) eklendi; Terminal artık doğrudan öne geliyor.",
         "Uykusuz Tosba menüsüne 'Tosba Lojistik (ETS2)' bölümü (yapım aşamasında) eklendi.",
@@ -1233,19 +1239,204 @@ def banner_yazdir():
 
 
 # =====================================================================
+# KULLANICI KİMLİK VE BİLDİRİM SİSTEMİ (Ufuk & Yiğit)
+# =====================================================================
+KULLANICILAR = {
+    "1": "Ufuk",
+    "2": "Yiğit"
+}
+USER_FILE = os.path.join(SCRIPT_DIR, "user.txt")
+SON_BILDIRIM_FILE = os.path.join(SCRIPT_DIR, ".son_bildirim")
+
+NTFY_TOPIC_UFUK_TO_YIGIT = "tellal_duyuru_ufuk_yigit_u2y_7294"
+NTFY_TOPIC_YIGIT_TO_UFUK = "tellal_duyuru_ufuk_yigit_y2u_7294"
+
+
+def kullanici_belirle():
+    """user.txt dosyasından kimliği okur; dosya yoksa veya geçersizse kullanıcıya sorup kaydeder."""
+    secim = None
+    if os.path.exists(USER_FILE):
+        try:
+            with open(USER_FILE, "r", encoding="utf-8") as f:
+                secim = f.read().strip()
+        except Exception:
+            secim = None
+
+    if secim not in KULLANICILAR:
+        console.print()
+        panel_metni = """[bold cyan]Tellal Kullanıcı Tanımlama[/bold cyan]
+
+[bold yellow]Sen Kimsin?[/bold yellow]
+[bold cyan]1.[/bold cyan] Ufuk
+[bold cyan]2.[/bold cyan] Yiğit
+
+[dim]Bu seçim 'user.txt' dosyasına kaydedilecek ve bir daha sorulmayacaktır.[/dim]"""
+        console.print(Panel(panel_metni, title="[bold green]👤 Kimlik Seçimi", expand=False))
+        secim = Prompt.ask("[bold green]Kimliğinizi seçin[/bold green]", choices=["1", "2"])
+        try:
+            with open(USER_FILE, "w", encoding="utf-8") as f:
+                f.write(secim)
+        except Exception as e:
+            console.print(f"[dim red]user.txt kaydedilemedi: {e}[/dim red]")
+
+    return secim, KULLANICILAR[secim]
+
+
+def kullanici_degistir():
+    """Mevcut kimlik dosyasını temizler ve tekrar kimlik seçtirir."""
+    if os.path.exists(USER_FILE):
+        try:
+            os.remove(USER_FILE)
+        except Exception:
+            pass
+    return kullanici_belirle()
+
+
+def bildirimleri_kontrol_et(kullanici_id):
+    """Program açıldığında veya menüde karşı taraftan gelen yeni bildirimleri denetler, macOS bildirimi ve kutuyla gösterir."""
+    if kullanici_id == "1":
+        dinlenen_topic = NTFY_TOPIC_YIGIT_TO_UFUK
+        gonderen_adi = "Yiğit"
+    else:
+        dinlenen_topic = NTFY_TOPIC_UFUK_TO_YIGIT
+        gonderen_adi = "Ufuk"
+
+    son_zaman = 0
+    if os.path.exists(SON_BILDIRIM_FILE):
+        try:
+            with open(SON_BILDIRIM_FILE, "r", encoding="utf-8") as f:
+                icerik = f.read().strip()
+                if icerik.isdigit():
+                    son_zaman = int(icerik)
+        except Exception:
+            son_zaman = 0
+
+    # Eğer daha önce hiç kayıt yoksa son 24 saatteki mesajlara bak
+    if son_zaman == 0:
+        son_zaman = int(datetime.now(timezone.utc).timestamp()) - 86400
+
+    url = f"https://ntfy.sh/{dinlenen_topic}/json?poll=1&since={son_zaman + 1}"
+    try:
+        yanit = requests.get(url, timeout=3.5)
+        if yanit.status_code != 200 or not yanit.text.strip():
+            return
+
+        yeni_mesajlar = []
+        en_buyuk_zaman = son_zaman
+
+        for satir in yanit.text.strip().split("\n"):
+            if not satir:
+                continue
+            try:
+                veri = json.loads(satir)
+                if veri.get("event") == "message":
+                    mesaj_zamani = veri.get("time", 0)
+                    if mesaj_zamani > son_zaman:
+                        yeni_mesajlar.append(veri)
+                        if mesaj_zamani > en_buyuk_zaman:
+                            en_buyuk_zaman = mesaj_zamani
+            except Exception:
+                continue
+
+        if yeni_mesajlar:
+            for m in yeni_mesajlar:
+                mesaj_metni = m.get("message", "")
+                zaman_ts = m.get("time", 0)
+                zaman_str = datetime.fromtimestamp(zaman_ts).strftime("%d.%m.%Y %H:%M") if zaman_ts else ""
+
+                # macOS yerel sesli bildirimi
+                if platform.system() == "Darwin":
+                    try:
+                        temiz_mesaj = mesaj_metni.replace('"', "'")
+                        subprocess.run(
+                            ["osascript", "-e", f'display notification "{temiz_mesaj}" with title "Tellal - {gonderen_adi}" sound name "Glass"'],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL
+                        )
+                    except Exception:
+                        pass
+
+                # Konsolda şık bildirim paneli
+                bildirim_paneli = f"[bold white]{mesaj_metni}[/bold white]\n\n[dim]Gönderilme: {zaman_str}[/dim]"
+                console.print()
+                console.print(Panel(bildirim_paneli, title=f"[bold yellow]📬 {gonderen_adi}'den Yeni Bildirim!", expand=False))
+                console.print()
+
+            # En son okunan zaman damgasını güncelle
+            try:
+                with open(SON_BILDIRIM_FILE, "w", encoding="utf-8") as f:
+                    f.write(str(en_buyuk_zaman))
+            except Exception:
+                pass
+
+    except Exception:
+        # Ağ kesintisi durumunda program akışı engellenmez
+        pass
+
+
+def bildirim_gonder(kullanici_id):
+    """Karşı kullanıcıya bildirim gönderir."""
+    if kullanici_id == "1":
+        hedef_adi = "Yiğit"
+        hedef_topic = NTFY_TOPIC_UFUK_TO_YIGIT
+        gonderen_adi = "Ufuk"
+    else:
+        hedef_adi = "Ufuk"
+        hedef_topic = NTFY_TOPIC_YIGIT_TO_UFUK
+        gonderen_adi = "Yiğit"
+
+    console.print()
+    panel_metni = (
+        f"[bold cyan]{hedef_adi}'e Bildirim Gönder[/bold cyan]\n\n"
+        f"[dim]• {hedef_adi} Tellal'ı açtığı anda Mac'inde sesli masaüstü bildirimi belirecektir.\n"
+        f"• Geri dönmek / vazgeçmek için boş bırakıp Enter'a basın veya 'q' yazın.[/dim]"
+    )
+    console.print(Panel(panel_metni, title="[bold yellow]📢 Bildirim Sistemi", expand=False))
+
+    mesaj = Prompt.ask(f"[bold green]{hedef_adi}'e iletilecek mesaj[/bold green]", default="").strip()
+
+    if not mesaj or mesaj.lower() in ("q", "iptal", "exit", "esc"):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    try:
+        payload = {
+            "topic": hedef_topic,
+            "title": f"Tellal - {gonderen_adi}",
+            "message": mesaj,
+            "priority": 4,
+            "tags": ["loudspeaker", "bell"]
+        }
+        res = requests.post("https://ntfy.sh", json=payload, timeout=5)
+        if res.status_code == 200:
+            console.print(f"\n[bold green]✓ Bildirim başarıyla gönderildi![/bold green] [dim]({hedef_adi} Tellal'ı açtığında görecek)[/dim]\n")
+        else:
+            console.print(f"\n[bold red]Bildirim gönderilemedi (Hata: {res.status_code})[/bold red]\n")
+    except Exception as e:
+        console.print(f"\n[bold red]Bağlantı hatası: {e}[/bold red]\n")
+
+
+# =====================================================================
 # ANA MENÜ
 # =====================================================================
-def ana_menu():
+def ana_menu(kullanici_id, kullanici_adi):
     while True:
+        diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
         banner_yazdir()
-        menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
+        console.print(f"[bold green]👤 Aktif Kullanıcı:[/bold green] [bold yellow]{kullanici_adi}[/bold yellow]  [dim](Değiştirmek için 'k')[/dim]")
+
+        # Ana menüye her dönüldüğünde yeni bir bildirim var mı diye sessizce kontrol et
+        bildirimleri_kontrol_et(kullanici_id)
+
+        menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
-[bold cyan]3.[/bold cyan] Çıkış"""
+[bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
+[bold cyan]4.[/bold cyan] Çıkış"""
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        ana_secim = Prompt.ask("[bold green]Sistem seçin[/bold green]", choices=["1", "2", "3"])
+        ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=["1", "2", "3", "4", "k"])
 
-        if ana_secim == "3":
+        if ana_secim == "4":
             console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
             if platform.system() == "Darwin":
                 try:
@@ -1261,10 +1452,20 @@ def ana_menu():
             uykusuz_tosba_menu()
         elif ana_secim == "2":
             radio_mocas_menu()
+        elif ana_secim == "3":
+            bildirim_gonder(kullanici_id)
+        elif ana_secim == "k":
+            kullanici_id, kullanici_adi = kullanici_degistir()
+            console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
+            bildirimleri_kontrol_et(kullanici_id)
 
 
 if __name__ == "__main__":
     masaustu_app_olustur()
     yenilikleri_goster()
-    ana_menu()
+    k_id, k_ad = kullanici_belirle()
+    console.print(Panel(f"[bold green]✨ Hoş geldin {k_ad}![/bold green]", expand=False))
+    bildirimleri_kontrol_et(k_id)
+    ana_menu(k_id, k_ad)
+
 
