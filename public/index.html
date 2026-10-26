@@ -8,13 +8,16 @@
   <meta name="description"
     content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=6.0">
+  <link rel="stylesheet" href="style.css?v=7.0">
   <script>
     (function() {
       try {
-        var u = localStorage.getItem("tellal_web_user");
-        if (u && u !== "3. Kullanıcı (Editör)") {
-          window.__initialUser = u;
+        var auth = localStorage.getItem("tellal_auth_session");
+        if (auth) {
+          var parsed = JSON.parse(auth);
+          if (parsed && parsed.role === "yonetici") {
+            document.documentElement.classList.add("role-yonetici");
+          }
         }
       } catch(e) {}
     })();
@@ -52,13 +55,18 @@
           <span id="liveClock">--:--:--</span>
         </div>
 
-        <!-- Aktif Kullanıcı Rozeti -->
-        <div class="user-badge" id="btnSwitchUser" onclick="switchUser()"
-          title="Kullanıcı ismini değiştirmek için tıklayın">
+        <!-- Aktif Kullanıcı & Rol Rozeti -->
+        <div class="user-badge" id="btnUserBadge" title="Aktif Kullanıcı">
           <span>👤</span>
-          <span id="activeUserName">Cem Yıldırım</span>
-          <span style="font-size: 0.7rem; opacity: 0.6;">✎</span>
+          <span id="activeUserName">Ufuk Çelen</span>
+          <span class="role-badge badge-admin" id="activeUserRole">Admin</span>
         </div>
+
+        <!-- Çıkış Yap Butonu -->
+        <button id="btnLogout" class="btn btn-secondary btn-sm" onclick="logoutUser()" title="Oturumu Kapat / Farklı Kullanıcı ile Giriş Yap">
+          <span>🚪</span>
+          <span>Çıkış</span>
+        </button>
 
         <!-- Bulut Senkronizasyon Butonu -->
         <button id="manualSyncBtn" class="btn btn-secondary btn-sm" title="Takvimi Bulutla Eşitle">
@@ -368,11 +376,70 @@
     </div>
   </div>
 
+  <!-- Kullanıcı Giriş Ekranı (Authentication Modal) -->
+  <div class="login-modal-overlay" id="loginModalOverlay" role="dialog" aria-modal="true" style="display: none;">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo-wrapper">
+          <img src="logo.png" alt="Tellal Logo" class="login-logo">
+        </div>
+        <h2>Tellal Cloud Portal</h2>
+        <p>Lütfen sisteme giriş yapmak için hesabınızı seçip şifrenizi girin.</p>
+      </div>
+
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label for="loginUserSelect">Kullanıcı Hesabı</label>
+          <div class="select-wrapper">
+            <select id="loginUserSelect" class="form-control" required>
+              <option value="" disabled selected>— Kullanıcı Seçin —</option>
+              <option value="Ufuk Çelen">Ufuk Çelen (Admin)</option>
+              <option value="Cem Yıldırım">Cem Yıldırım (Admin)</option>
+              <option value="Mustafa Yiğit Kızılel">Mustafa Yiğit Kızılel (Admin)</option>
+              <option value="Kadir Tekin">Kadir Tekin (Yönetici)</option>
+              <option value="Yağız Pekdemir">Yağız Pekdemir (Yönetici)</option>
+              <option value="Burhan Mutlugöz">Burhan Mutlugöz (Yönetici)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="loginPasswordInput">Şifre</label>
+          <div class="password-input-wrapper">
+            <input type="password" id="loginPasswordInput" class="form-control" placeholder="Şifrenizi girin..." required autocomplete="current-password">
+            <button type="button" class="btn-toggle-password" id="btnTogglePassword" title="Şifreyi Göster / Gizle">👁️</button>
+          </div>
+        </div>
+
+        <div id="loginErrorAlert" class="login-error-alert" style="display: none;">
+          <span>⚠️</span>
+          <span id="loginErrorMsg">Hatalı şifre girdiniz. Lütfen tekrar deneyin.</span>
+        </div>
+
+        <div class="login-options-row">
+          <label class="remember-label">
+            <input type="checkbox" id="loginRememberMe" checked>
+            <span>Beni hatırla (Şifreyi bir daha sorma)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-login-submit" id="btnLoginSubmit">
+          <span>Giriş Yap</span>
+          <span style="font-size: 1.1rem; margin-left: 4px;">➜</span>
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <span>🔒 Güvenli Oturum & Rol Yetkilendirme</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Bildirim Kapsayıcısı -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=6.0"></script>
+  <script src="app.js?v=7.0"></script>
 </body>
 
 </html>

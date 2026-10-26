@@ -7,10 +7,58 @@
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
 const STORAGE_KEY_TAKVIM = "tellal_web_takvim";
 const STORAGE_KEY_USER = "tellal_web_user";
+const STORAGE_KEY_AUTH = "tellal_auth_session";
 
-const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+// Rol Tanımları
+const ROLES = {
+  ADMIN: "admin",
+  YONETICI: "yonetici",
+  USER: "user"
+};
+
+// 6 Adet Yetkili Kullanıcı ve Şifreleri
+const AUTH_USERS = [
+  {
+    name: "Ufuk Çelen",
+    role: "admin",
+    roleTitle: "Admin",
+    password: "JCH2dmHQmYUgsauS"
+  },
+  {
+    name: "Cem Yıldırım",
+    role: "admin",
+    roleTitle: "Admin",
+    password: "j2MdzLpIvNsWckiv"
+  },
+  {
+    name: "Mustafa Yiğit Kızılel",
+    role: "admin",
+    roleTitle: "Admin",
+    password: "h7gFMjXnrwwmEFAs"
+  },
+  {
+    name: "Kadir Tekin",
+    role: "yonetici",
+    roleTitle: "Yönetici",
+    password: "TM0ifvnM9m7nhz0R"
+  },
+  {
+    name: "Yağız Pekdemir",
+    role: "yonetici",
+    roleTitle: "Yönetici",
+    password: "cGagCBKvxdxYG5ti"
+  },
+  {
+    name: "Burhan Mutlugöz",
+    role: "yonetici",
+    roleTitle: "Yönetici",
+    password: "hTFUHYrif2fSLraH"
+  }
+];
+
 let state = {
-  currentUser: (savedUser && savedUser !== "3. Kullanıcı (Editör)") ? savedUser : "Cem Yıldırım",
+  currentUser: "Ufuk Çelen",
+  userRole: "admin",
   yayinlar: [],
   geminiMatches: [],
   activeFilter: "all",
@@ -30,7 +78,7 @@ let chatState = {
 
 // DOM Yüklendiğinde Başlat
 document.addEventListener("DOMContentLoaded", () => {
-  initUser();
+  initAuth();
   initCalendarData();
   setupEventListeners();
   startNtfyPolling();
@@ -41,25 +89,103 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(updateClock, 1000);
 });
 
-// 1. Kullanıcı Yönetimi
-function initUser() {
+// 1. Oturum & Rol Yetkilendirme Yönetimi
+function initAuth() {
+  const savedAuth = localStorage.getItem(STORAGE_KEY_AUTH);
+  if (savedAuth) {
+    try {
+      const parsed = JSON.parse(savedAuth);
+      const user = AUTH_USERS.find(u => u.name === parsed.name);
+      if (user) {
+        state.currentUser = user.name;
+        state.userRole = user.role;
+        hideLoginModal();
+        applyRolePermissions();
+        return;
+      }
+    } catch (e) {
+      console.warn("Auth oturum hatası:", e);
+    }
+  }
+
+  showLoginModal();
+}
+
+function showLoginModal() {
+  const overlay = document.getElementById("loginModalOverlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+    const errBox = document.getElementById("loginErrorAlert");
+    if (errBox) errBox.style.display = "none";
+    const passInput = document.getElementById("loginPasswordInput");
+    if (passInput) passInput.value = "";
+  }
+}
+
+function hideLoginModal() {
+  const overlay = document.getElementById("loginModalOverlay");
+  if (overlay) overlay.style.display = "none";
+}
+
+function logoutUser() {
+  const onay = confirm("Oturumu kapatmak istediğinize emin misiniz?");
+  if (!onay) return;
+  localStorage.removeItem(STORAGE_KEY_AUTH);
+  document.documentElement.classList.remove("role-yonetici", "role-admin", "role-user");
+  document.body.classList.remove("role-yonetici", "role-admin", "role-user");
+  showLoginModal();
+  showToast("Oturum kapatıldı. Lütfen tekrar giriş yapın.", "info");
+}
+
+function applyRolePermissions() {
+  const isYonetici = (state.userRole === "yonetici");
+  const isUser = (state.userRole === "user");
+  const isAdmin = (state.userRole === "admin");
+
+  document.documentElement.classList.toggle("role-yonetici", isYonetici);
+  document.documentElement.classList.toggle("role-admin", isAdmin);
+  document.body.classList.toggle("role-yonetici", isYonetici);
+  document.body.classList.toggle("role-admin", isAdmin);
+
+  // 1. Üst bar: Yayın Ekle Butonu (Yöneticide gizlenir)
+  const addBtn = document.getElementById("openAddModalBtn");
+  if (addBtn) addBtn.style.display = (isYonetici || isUser) ? "none" : "";
+
+  // 2. Üst bar: Gemini AI Butonu (Yöneticide gizlenir)
+  const geminiBtn = document.getElementById("btnGeminiAiScan");
+  if (geminiBtn) geminiBtn.style.display = (isYonetici || isUser) ? "none" : "";
+
+  // 3. Kullanıcı Rozeti & Rol Bilgisi
   const userElem = document.getElementById("activeUserName");
   if (userElem) userElem.textContent = state.currentUser;
+
+  const roleElem = document.getElementById("activeUserRole");
+  if (roleElem) {
+    if (isAdmin) {
+      roleElem.textContent = "Admin";
+      roleElem.className = "role-badge badge-admin";
+    } else if (isYonetici) {
+      roleElem.textContent = "Yönetici";
+      roleElem.className = "role-badge badge-yonetici";
+    } else {
+      roleElem.textContent = "Kullanıcı";
+      roleElem.className = "role-badge badge-user";
+    }
+  }
+
+  // 4. Chat aktif kullanıcı bilgisi
   const chatLabel = document.getElementById("chatActiveUserLabel");
   if (chatLabel) chatLabel.textContent = state.currentUser;
   const chatInput = document.getElementById("chatInput");
   if (chatInput) chatInput.placeholder = `${state.currentUser} olarak ekip arkadaşlarına mesaj yaz...`;
+
+  // 5. Takvimi ve yayın listesini yeniden render et
+  renderCalendar();
+  renderMonthCalendar();
 }
 
-function switchUser() {
-  const current = state.currentUser;
-  const yeniAd = prompt("Aktif Kullanıcı İsminizi Girin (Örn: Cem Yıldırım, Ufuk, Yiğit):", current);
-  if (yeniAd && yeniAd.trim()) {
-    state.currentUser = yeniAd.trim();
-    localStorage.setItem(STORAGE_KEY_USER, state.currentUser);
-    initUser();
-    showToast(`Aktif kullanıcı "${state.currentUser}" olarak güncellendi.`, "info");
-  }
+function initUser() {
+  applyRolePermissions();
 }
 
 // 2. Takvim Verisi Yükleme & Parse Etme
@@ -212,7 +338,7 @@ function renderCalendar() {
         <div class="empty-state-icon">📅</div>
         <h3>Eşleşen Yayın Bulunamadı</h3>
         <p>Arama kriterlerinize veya seçilen filtreye uygun planlanmış bir yayın yok.</p>
-        <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Yeni Yayın Ekle</button>
+        ${state.userRole === "yonetici" ? "" : `<button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Yeni Yayın Ekle</button>`}
       </div>
     `;
     renderMonthCalendar();
@@ -261,9 +387,11 @@ function renderCalendar() {
             <button class="action-icon-btn gcal-btn" title="Bu yayını Google Takvim'e ekle / aç" onclick="openGoogleCalendarForBroadcast(${item.index})">
               📅
             </button>
-            <button class="action-icon-btn delete-btn" title="Yayını Takvimden Sil" onclick="silYayin(${item.index})">
-              🗑️
-            </button>
+            ${state.userRole === "yonetici" ? "" : `
+              <button class="action-icon-btn delete-btn" title="Yayını Takvimden Sil" onclick="silYayin(${item.index})">
+                🗑️
+              </button>
+            `}
           </div>
         </div>
       </div>
@@ -395,6 +523,10 @@ function toggleYayinDurumu(index, action) {
 
 // 7. Yayın Silme
 function silYayin(index) {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın silme yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
   if (index < 0 || index >= state.yayinlar.length) return;
   const onay = confirm("Bu yayını takvimden tamamen silmek istediğinize emin misiniz?");
   if (!onay) return;
@@ -691,6 +823,56 @@ function setupEventListeners() {
   // Karşılaşmalar Açılır Filtre Menüsü Kontrolleri
   initMatchesFilterEvents();
 
+  // Kullanıcı Giriş Formu ve Oturum Yönetimi
+  const loginForm = document.getElementById("loginForm");
+  if (loginForm) {
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const userSelect = document.getElementById("loginUserSelect");
+      const passInput = document.getElementById("loginPasswordInput");
+      const rememberCheckbox = document.getElementById("loginRememberMe");
+      const errBox = document.getElementById("loginErrorAlert");
+
+      const selectedName = userSelect ? userSelect.value : "";
+      const enteredPassword = passInput ? passInput.value.trim() : "";
+
+      const user = AUTH_USERS.find(u => u.name === selectedName);
+      if (user && user.password === enteredPassword) {
+        state.currentUser = user.name;
+        state.userRole = user.role;
+
+        // "Beni hatırla" veya bir kere doğru girildiğinde kalıcı kaydet
+        if (!rememberCheckbox || rememberCheckbox.checked) {
+          localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify({ name: user.name, role: user.role }));
+        }
+
+        if (errBox) errBox.style.display = "none";
+        hideLoginModal();
+        applyRolePermissions();
+        showToast(`Hoş geldiniz, ${user.name} (${user.roleTitle})! 👋`, "success");
+      } else {
+        if (errBox) errBox.style.display = "flex";
+        if (passInput) {
+          passInput.value = "";
+          passInput.focus();
+        }
+      }
+    });
+  }
+
+  // Şifre Göster / Gizle Butonu
+  const togglePassBtn = document.getElementById("btnTogglePassword");
+  if (togglePassBtn) {
+    togglePassBtn.addEventListener("click", () => {
+      const passInput = document.getElementById("loginPasswordInput");
+      if (passInput) {
+        const isPass = passInput.getAttribute("type") === "password";
+        passInput.setAttribute("type", isPass ? "text" : "password");
+        togglePassBtn.textContent = isPass ? "🙈" : "👁️";
+      }
+    });
+  }
+
   // Hızlı Gün Seçimi için Dinamik Doldurma
   setupGunOptions();
   guncelleProgramListesi();
@@ -792,6 +974,10 @@ function setupGunOptions() {
 }
 
 function openAddModal(resetProgram = true) {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın ekleme yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
   const modal = document.getElementById("addBroadcastModal");
   if (modal) {
     modal.classList.add("open");
@@ -1127,6 +1313,10 @@ function renderMonthCalendar() {
 }
 
 function selectCalendarDay(day, dayName) {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın ekleme yetkisi yalnızca Admin rolündedir.", "info");
+    return;
+  }
   const gunSelect = document.getElementById("inputGun");
   const monthName = AY_ISIMLERI[state.calendarMonth];
   const targetVal = `${day} ${monthName} (${dayName})`;
@@ -1753,6 +1943,10 @@ async function senkronizeGeminiMatches() {
 }
 
 async function runGeminiAiMatchScanner(isManual = false) {
+  if (isManual && state.userRole === "yonetici") {
+    showToast("Gemini AI tarayıcı yetkisi yalnızca Admin rolündedir.", "warning");
+    return;
+  }
   // 1. Gemini AI maçlarını state'e yükle (Yayın takvimine değil, doğrudan normal takvim gridine eklenir)
   state.geminiMatches = [...GEMINI_AI_FIXTURES];
   localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
@@ -1874,16 +2068,19 @@ function openGeminiMatchModal(matchId) {
     </div>
   `;
 
+  const isYonetici = (state.userRole === "yonetici");
   modalFooter.innerHTML = `
     <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
-    <button type="button" class="btn btn-danger" onclick="removeGeminiMatch('${escapeHtml(match.id)}')">
-      <span>🗑️</span>
-      <span>Takvimden Kaldır</span>
-    </button>
-    <button type="button" class="btn btn-primary" onclick="geminiMacaYayinEkle('${escapeHtml(match.id)}')">
-      <span>➕</span>
-      <span>Bu Karşılaşma İçin Yayın Ekle</span>
-    </button>
+    ${isYonetici ? "" : `
+      <button type="button" class="btn btn-danger" onclick="removeGeminiMatch('${escapeHtml(match.id)}')">
+        <span>🗑️</span>
+        <span>Takvimden Kaldır</span>
+      </button>
+      <button type="button" class="btn btn-primary" onclick="geminiMacaYayinEkle('${escapeHtml(match.id)}')">
+        <span>➕</span>
+        <span>Bu Karşılaşma İçin Yayın Ekle</span>
+      </button>
+    `}
   `;
 
   modal.classList.add("open");
@@ -1891,6 +2088,10 @@ function openGeminiMatchModal(matchId) {
 
 // 2. Maçı Takvimden Kaldırma (state, localStorage ve Firebase RTDB gemini_matches.json tablosundan silinir)
 async function removeGeminiMatch(matchId) {
+  if (state.userRole === "yonetici") {
+    showToast("Maç kaldırma yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
   const matchIndex = (state.geminiMatches || []).findIndex(m => m.id === matchId);
   if (matchIndex === -1) return;
 
@@ -1974,12 +2175,15 @@ function openBroadcastModal(index) {
     </div>
   `;
 
+  const isYonetici = (state.userRole === "yonetici");
   modalFooter.innerHTML = `
     <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
-    <button type="button" class="btn btn-danger" onclick="silYayinFromModal(${item.index})">
-      <span>🗑️</span>
-      <span>Yayını Takvimden Kaldır / Sil</span>
-    </button>
+    ${isYonetici ? "" : `
+      <button type="button" class="btn btn-danger" onclick="silYayinFromModal(${item.index})">
+        <span>🗑️</span>
+        <span>Yayını Takvimden Kaldır / Sil</span>
+      </button>
+    `}
   `;
 
   modal.classList.add("open");
@@ -2000,6 +2204,10 @@ function closeEventModal() {
 // - Yayın saatini maç saatinden 15 dk önceye ayarlar
 // - Ek not bilgi bölümüne "X - Y takımı maçı" yazar
 function geminiMacaYayinEkle(arg1, argSaat, argGun, argAyIdx) {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın ekleme yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
   closeEventModal();
 
   let match = null;
