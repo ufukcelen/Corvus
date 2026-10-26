@@ -19,6 +19,12 @@ import unicodedata
 import glob
 import hashlib
 import platform
+try:
+    import tty
+    import termios
+except ImportError:
+    tty = None
+    termios = None
 from urllib.parse import quote
 from datetime import datetime, timedelta, timezone
 from rich.console import Console
@@ -31,8 +37,12 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.1"
+SURUM = "1.4.2"
 SURUM_NOTLARI = {
+    "1.4.2": [
+        "Tellal.app çift tıklandığında fazladan boş Terminal penceresi açılma sorunu giderildi.",
+        "Ana menüye 'Chat Refresh Yenile(R)' eklendi; R tuşuna basıldığında anında ekrana yazılmadan takvim ve chat yenilenir.",
+    ],
     "1.4.1": [
         "Ufuk & Yiğit arasında canlı 'Chat' sohbet kutusu eklendi.",
         "Menüye 'Chat' seçeneği getirilerek anlık mesajlaşma sağlandı.",
@@ -370,9 +380,23 @@ def masaustu_app_olustur():
     main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
 
     komut_argumanlari = [
+        "-e", 'tell application "System Events" to set isRunning to (name of processes) contains "Terminal"',
         "-e", 'tell application "Terminal"',
-        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
         "-e", 'activate',
+        "-e", 'if not isRunning then',
+        "-e", 'delay 0.3',
+        "-e", 'if (count of windows) > 0 and busy of window 1 is false then',
+        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py" in window 1',
+        "-e", 'else',
+        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
+        "-e", 'end if',
+        "-e", 'else',
+        "-e", 'if (count of windows) is 1 and busy of window 1 is false and (history of tab 1 of window 1 contains "Last login" or history of tab 1 of window 1 is "") then',
+        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py" in window 1',
+        "-e", 'else',
+        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
+        "-e", 'end if',
+        "-e", 'end if',
         "-e", 'end tell'
     ]
 
@@ -384,9 +408,9 @@ def masaustu_app_olustur():
         except Exception:
             return
     else:
-        # Uygulama zaten var: sadece script'in Terminal'i öne getirdiğinden (activate) emin ol
+        # Uygulama zaten var: sadece script'in güncel tek pencere mantığını kullandığından emin ol
         try:
-            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v2")
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v3")
             if not os.path.exists(marker) and os.path.exists(main_scpt):
                 subprocess.run(["osacompile", "-o", main_scpt] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 with open(marker, "w") as f:
@@ -412,7 +436,7 @@ def masaustu_app_olustur():
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v2"), "w") as f:
+        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v3"), "w") as f:
             f.write("1")
     except Exception:
         pass
@@ -2079,11 +2103,79 @@ def chat_temizle():
 # =====================================================================
 # ANA MENÜ
 # =====================================================================
+def ana_menu_secim_al(prompt_metni, gecerli_secimler):
+    """
+    Ana menü için özel girdi alıcı.
+    Kullanıcı 'r' veya 'R' tuşuna bastığında ekrana hiçbir şey yazdırmadan (r bir yere yazılmadan)
+    anında 'r' döndürür ve yenilemeyi tetikler.
+    Diğer seçimler için karakter ekrana yazılır ve Enter ile onaylanır.
+    """
+    if not sys.stdin.isatty() or termios is None or tty is None:
+        return Prompt.ask(prompt_metni, choices=gecerli_secimler).lower()
+
+    console.print(prompt_metni, end=" ")
+    sys.stdout.flush()
+
+    fd = sys.stdin.fileno()
+    eski_ayarlar = termios.tcgetattr(fd)
+    buffer = ""
+    try:
+        tty.setcbreak(fd)
+        while True:
+            ch = sys.stdin.read(1)
+            # Ctrl+C kontrolü
+            if ch == "\x03":
+                raise KeyboardInterrupt
+
+            # Henüz hiçbir şey yazılmamışken r veya R tuşuna basıldıysa:
+            # "r bir yere yazılmasın r ye hiçbir text box içinde değilken basıldığında..."
+            if ch in ("r", "R") and len(buffer) == 0:
+                # Ekrana r yazılmadan anında 'r' olarak döndür
+                return "r"
+
+            # Enter basıldıysa:
+            if ch in ("\r", "\n"):
+                secim = buffer.strip().lower()
+                if secim in gecerli_secimler:
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
+                    return secim
+                elif not secim:
+                    continue
+                else:
+                    sys.stdout.write(f"\n[Geçersiz seçim: {secim}]\n")
+                    sys.stdout.flush()
+                    buffer = ""
+                    console.print(prompt_metni, end=" ")
+                    sys.stdout.flush()
+                    continue
+
+            # Backspace / Silme:
+            if ch in ("\x7f", "\x08"):
+                if len(buffer) > 0:
+                    buffer = buffer[:-1]
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+                continue
+
+            # Normal yazılabilir karakterler (1, 2, 3... k vs):
+            if ch.isprintable() and len(ch) == 1:
+                buffer += ch
+                sys.stdout.write(ch)
+                sys.stdout.flush()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, eski_ayarlar)
+
+
 def ana_menu(kullanici_id, kullanici_adi):
+    yenilendi_mesaji = False
     while True:
         diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
         banner_yazdir()
         console.print(f"[bold green]👤 Aktif Kullanıcı:[/bold green] [bold yellow]{kullanici_adi}[/bold yellow]  [dim](Değiştirmek için 'k')[/dim]")
+        if yenilendi_mesaji:
+            console.print("[bold green]✓[/bold green] [dim cyan]Yayın durumu ve Chat yenilendi.[/dim cyan]")
+            yenilendi_mesaji = False
 
         # Ana menüye her dönüldüğünde yeni bir bildirim var mı diye sessizce kontrol et
         bildirimleri_kontrol_et(kullanici_id)
@@ -2097,15 +2189,19 @@ def ana_menu(kullanici_id, kullanici_adi):
 [bold cyan]5.[/bold cyan] Yayın Ekle... 📅
 [bold cyan]6.[/bold cyan] Yayın İptal... ❌
 [bold cyan]7.[/bold cyan] Yayın Sil... 🗑️
-[bold cyan]8.[/bold cyan] Çıkış"""
-            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k"]
+[bold cyan]8.[/bold cyan] Çıkış
+
+[dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
+            gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
         else:
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Duyurular Yapıldı ✅
-[bold cyan]5.[/bold cyan] Çıkış"""
-            gecerli_secimler = ["1", "2", "3", "4", "5", "k"]
+[bold cyan]5.[/bold cyan] Çıkış
+
+[dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
+            gecerli_secimler = ["1", "2", "3", "4", "5", "k", "r"]
 
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
@@ -2164,7 +2260,15 @@ def ana_menu(kullanici_id, kullanici_adi):
 
         console.print(Panel(chat_metni, title="[bold yellow]💬 Chat[/bold yellow]", expand=False))
 
-        ana_secim = Prompt.ask("[bold green]Seçim yapın[/bold green]", choices=gecerli_secimler)
+        ana_secim = ana_menu_secim_al("[bold green]Seçim yapın[/bold green]", gecerli_secimler)
+
+        # R tuşuna basıldığında anında yayın durumu, chat ve bildirimleri yenile (API çağrıları hariç)
+        if ana_secim == "r":
+            takvim_senkronize_et()
+            chat_senkronize_et(kullanici_adi)
+            bildirimleri_kontrol_et(kullanici_id)
+            yenilendi_mesaji = True
+            continue
 
         if kullanici_id == "1":
             if ana_secim == "8":
