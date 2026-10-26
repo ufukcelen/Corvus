@@ -18,7 +18,8 @@ let state = {
   isSyncing: false,
   lastSyncTime: 0,
   calendarYear: new Date().getFullYear(),
-  calendarMonth: new Date().getMonth()
+  calendarMonth: new Date().getMonth(),
+  selectedSports: ["futbol", "voleybol", "nba", "eurolig", "tenis", "f1"]
 };
 
 let chatState = {
@@ -85,6 +86,20 @@ async function initCalendarData() {
   } else {
     state.geminiMatches = [...GEMINI_AI_FIXTURES];
   }
+
+  // Karşılaşma filtre tercihlerini localStorage'dan yükle
+  const localSports = localStorage.getItem("tellal_selected_sports");
+  if (localSports) {
+    try {
+      const parsedSports = JSON.parse(localSports);
+      if (Array.isArray(parsedSports)) {
+        state.selectedSports = parsedSports;
+      }
+    } catch (e) {
+      console.warn("Spor filtreleri okunamadı:", e);
+    }
+  }
+  updateMatchesFilterUI();
 
   renderCalendar();
   updateStats();
@@ -565,6 +580,9 @@ function setupEventListeners() {
     geminiBtn.addEventListener("click", () => runGeminiAiMatchScanner(true));
   }
 
+  // Karşılaşmalar Açılır Filtre Menüsü Kontrolleri
+  initMatchesFilterEvents();
+
   // Hızlı Gün Seçimi için Dinamik Doldurma
   setupGunOptions();
   guncelleProgramListesi();
@@ -697,6 +715,86 @@ const AY_KISALTMALARI = [
 
 const GUN_ADLARI = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
+const ALL_SPORTS = ["futbol", "voleybol", "nba", "eurolig", "tenis", "f1"];
+
+function updateMatchesFilterUI() {
+  const allCheckbox = document.getElementById("filterSportAll");
+  const sportCheckboxes = document.querySelectorAll(".sport-checkbox");
+
+  if (!state.selectedSports || !Array.isArray(state.selectedSports)) {
+    state.selectedSports = [...ALL_SPORTS];
+  }
+
+  sportCheckboxes.forEach(cb => {
+    cb.checked = state.selectedSports.includes(cb.value);
+  });
+
+  if (allCheckbox) {
+    allCheckbox.checked = (state.selectedSports.length === ALL_SPORTS.length);
+  }
+}
+
+function initMatchesFilterEvents() {
+  const filterWrapper = document.getElementById("matchesFilterWrapper");
+  const filterBtn = document.getElementById("btnMatchesFilter");
+  const filterDropdown = document.getElementById("matchesFilterDropdown");
+  const allCheckbox = document.getElementById("filterSportAll");
+  const sportCheckboxes = document.querySelectorAll(".sport-checkbox");
+
+  if (!filterWrapper || !filterBtn || !filterDropdown) return;
+
+  // Açılır menüyü aç / kapat
+  filterBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isShow = filterDropdown.classList.toggle("show");
+    filterBtn.classList.toggle("open", isShow);
+    filterBtn.setAttribute("aria-expanded", isShow ? "true" : "false");
+  });
+
+  // Dropdown içi tıklamaların menüyü kapatmasını engelle
+  filterDropdown.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
+  // Dışarı tıklayınca dropdown'ı kapat
+  document.addEventListener("click", (e) => {
+    if (!filterWrapper.contains(e.target)) {
+      filterDropdown.classList.remove("show");
+      filterBtn.classList.remove("open");
+      filterBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  // "Tümü" onay kutusu tıklandığında
+  if (allCheckbox) {
+    allCheckbox.addEventListener("change", () => {
+      if (allCheckbox.checked) {
+        state.selectedSports = [...ALL_SPORTS];
+      } else {
+        state.selectedSports = [];
+      }
+      sportCheckboxes.forEach(cb => {
+        cb.checked = allCheckbox.checked;
+      });
+      localStorage.setItem("tellal_selected_sports", JSON.stringify(state.selectedSports));
+      renderMonthCalendar();
+    });
+  }
+
+  // Branş bazlı onay kutuları tıklandığında
+  sportCheckboxes.forEach(cb => {
+    cb.addEventListener("change", () => {
+      const checkedBoxes = Array.from(document.querySelectorAll(".sport-checkbox:checked"));
+      state.selectedSports = checkedBoxes.map(b => b.value);
+      if (allCheckbox) {
+        allCheckbox.checked = (state.selectedSports.length === ALL_SPORTS.length);
+      }
+      localStorage.setItem("tellal_selected_sports", JSON.stringify(state.selectedSports));
+      renderMonthCalendar();
+    });
+  });
+}
+
 function initMonthCalendar() {
   const prevBtn = document.getElementById("prevMonthBtn");
   const nextBtn = document.getElementById("nextMonthBtn");
@@ -764,14 +862,18 @@ function renderMonthCalendar() {
   // 1. Önceki aydan kalan günler (Sol boşluklar)
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const prevDayNum = prevMonthDays - i;
-    const prevMatches = (state.geminiMatches || []).filter(m => m.gun === prevDayNum && m.ay === prevMonthIdx && m.yil === prevMonthYear);
+    const prevMatches = (state.geminiMatches || []).filter(m => {
+      const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+      const isSelected = (state.selectedSports || []).includes(brans);
+      return isSelected && m.gun === prevDayNum && m.ay === prevMonthIdx && m.yil === prevMonthYear;
+    });
     let prevEventsHtml = "";
     if (prevMatches.length > 0) {
       prevEventsHtml = prevMatches.map(m => {
-        const tipClass = m.tip || "lig";
-        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+        const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+        const icon = m.ikon || (brans === "voleybol" ? "🏐" : brans === "nba" ? "🏀" : brans === "eurolig" ? "🏆" : brans === "tenis" ? "🎾" : brans === "f1" ? "🏎️" : "⚽");
         return `
-          <div class="cal-event-pill gemini-match ${tipClass}" 
+          <div class="cal-event-pill gemini-match ${brans}" 
                title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
                onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
@@ -814,9 +916,11 @@ function renderMonthCalendar() {
       return broadcastMatchesDay(item, d, state.calendarMonth, state.calendarYear, dayName, isToday, todayDate);
     });
 
-    // B) Bu güne denk gelen GEMINI AI maç eventleri (Kullanıcının istediği normal takvim hücre eventleri)
+    // B) Bu güne denk gelen GEMINI AI karşılaşmaları (Kullanıcının seçtiği branş filtrelerine göre)
     const matchingMatches = (state.geminiMatches || []).filter(m => {
-      return m.gun === d && m.ay === state.calendarMonth && m.yil === state.calendarYear;
+      const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+      const isSelected = (state.selectedSports || []).includes(brans);
+      return isSelected && m.gun === d && m.ay === state.calendarMonth && m.yil === state.calendarYear;
     });
 
     let eventsHtml = "";
@@ -840,14 +944,14 @@ function renderMonthCalendar() {
       }).join("");
     }
 
-    // 2. Gemini AI futbol maç pilleri (Özel futbol/derbi/milli takım rozeti)
+    // 2. Gemini AI karşılaşma pilleri (Futbol, Voleybol, NBA, EuroLig, Tenis, F1)
     if (matchingMatches.length > 0) {
       eventsHtml += matchingMatches.map(m => {
-        const tipClass = m.tip || "lig";
-        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+        const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+        const icon = m.ikon || (brans === "voleybol" ? "🏐" : brans === "nba" ? "🏀" : brans === "eurolig" ? "🏆" : brans === "tenis" ? "🎾" : brans === "f1" ? "🏎️" : "⚽");
 
         return `
-          <div class="cal-event-pill gemini-match ${tipClass}" 
+          <div class="cal-event-pill gemini-match ${brans}" 
                title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
                onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
@@ -880,14 +984,18 @@ function renderMonthCalendar() {
       nextDayLabel = `<span class="cal-day-number">${n}</span>`;
     }
 
-    const nextMatches = (state.geminiMatches || []).filter(m => m.gun === n && m.ay === nextMonthIdx && m.yil === nextMonthYear);
+    const nextMatches = (state.geminiMatches || []).filter(m => {
+      const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+      const isSelected = (state.selectedSports || []).includes(brans);
+      return isSelected && m.gun === n && m.ay === nextMonthIdx && m.yil === nextMonthYear;
+    });
     let nextEventsHtml = "";
     if (nextMatches.length > 0) {
       nextEventsHtml = nextMatches.map(m => {
-        const tipClass = m.tip || "lig";
-        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+        const brans = m.brans || (m.tip === "milli" ? "futbol" : (m.tip || "futbol"));
+        const icon = m.ikon || (brans === "voleybol" ? "🏐" : brans === "nba" ? "🏀" : brans === "eurolig" ? "🏆" : brans === "tenis" ? "🎾" : brans === "f1" ? "🏎️" : "⚽");
         return `
-          <div class="cal-event-pill gemini-match ${tipClass}" 
+          <div class="cal-event-pill gemini-match ${brans}" 
                title="${escapeHtml(m.aciklama)} (Detaylar ve İşlemler)"
                onclick="event.stopPropagation(); openGeminiMatchModal('${escapeHtml(m.id)}')">
             <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
@@ -995,14 +1103,18 @@ function broadcastMatchesDay(item, d, monthIdx, year, dayName, isToday, todayDat
 // GEMINI AI MAÇ TAKİP VE TAKVİM ASİSTANI (NORMAL TAKVİM GRİDİ İÇİN)
 // =====================================================================
 const GEMINI_AI_FIXTURES = [
+  // ================= 1. FUTBOL (Süper Lig + UEFA Şampiyonlar/Avrupa/Konferans Ligi + A Milli Takım) =================
   {
     id: "derbi-gs-fb",
     takimlar: "Galatasaray - Fenerbahçe",
     kisaAd: "GS - FB (Dev Derbi)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "derbi",
+    tip: "futbol",
     gun: 26,
-    ay: 9, // Ekim (0-indexed: 9 = Ekim)
+    ay: 9, // Ekim
     yil: 2026,
     saat: "20:00",
     aciklama: "⚽ 20:00 Galatasaray vs Fenerbahçe Dev Derbi"
@@ -1011,8 +1123,11 @@ const GEMINI_AI_FIXTURES = [
     id: "bjk-basaksehir",
     takimlar: "Beşiktaş - Başakşehir",
     kisaAd: "BJK - Başakşehir",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 26,
     ay: 9,
     yil: 2026,
@@ -1023,8 +1138,11 @@ const GEMINI_AI_FIXTURES = [
     id: "rize-ts",
     takimlar: "Çaykur Rizespor - Trabzonspor",
     kisaAd: "Rizespor - TS",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 26,
     ay: 9,
     yil: 2026,
@@ -1035,8 +1153,11 @@ const GEMINI_AI_FIXTURES = [
     id: "konya-gs",
     takimlar: "Konyaspor - Galatasaray",
     kisaAd: "Konya - GS",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 30,
     ay: 9,
     yil: 2026,
@@ -1047,8 +1168,11 @@ const GEMINI_AI_FIXTURES = [
     id: "fb-goztepe",
     takimlar: "Fenerbahçe - Göztepe",
     kisaAd: "FB - Göztepe",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 31,
     ay: 9,
     yil: 2026,
@@ -1059,10 +1183,13 @@ const GEMINI_AI_FIXTURES = [
     id: "ts-gaziantep",
     takimlar: "Trabzonspor - Gaziantep FK",
     kisaAd: "TS - Gaziantep",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 1,
-    ay: 10, // Kasım (0-indexed: 10 = Kasım)
+    ay: 10, // Kasım
     yil: 2026,
     saat: "16:00",
     aciklama: "⚽ 16:00 Trabzonspor vs Gaziantep FK"
@@ -1071,8 +1198,11 @@ const GEMINI_AI_FIXTURES = [
     id: "kasimpasa-bjk",
     takimlar: "Kasımpaşa - Beşiktaş",
     kisaAd: "Kasımpaşa - BJK",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "Süper Lig",
-    tip: "lig",
+    tip: "futbol",
     gun: 1,
     ay: 10,
     yil: 2026,
@@ -1080,16 +1210,419 @@ const GEMINI_AI_FIXTURES = [
     aciklama: "⚽ 19:00 Kasımpaşa vs Beşiktaş"
   },
   {
+    id: "uefa-ajax-gs",
+    takimlar: "Ajax - Galatasaray",
+    kisaAd: "Ajax - GS (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Avrupa Arenası",
+    tip: "futbol",
+    gun: 5,
+    ay: 10, // 5 Kasım
+    yil: 2026,
+    saat: "23:00",
+    aciklama: "⚽ 23:00 Ajax vs Galatasaray (UEFA Avrupa)"
+  },
+  {
+    id: "uefa-bjk-malmo",
+    takimlar: "Beşiktaş - Malmö",
+    kisaAd: "BJK - Malmö (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Avrupa Ligi",
+    tip: "futbol",
+    gun: 6,
+    ay: 10, // 6 Kasım
+    yil: 2026,
+    saat: "18:30",
+    aciklama: "⚽ 18:30 Beşiktaş vs Malmö (UEFA Avrupa Ligi)"
+  },
+  {
+    id: "uefa-ts-rapid",
+    takimlar: "Trabzonspor - Rapid Wien",
+    kisaAd: "TS - Rapid Wien (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Konferans Ligi",
+    tip: "futbol",
+    gun: 7,
+    ay: 10, // 7 Kasım
+    yil: 2026,
+    saat: "20:45",
+    aciklama: "⚽ 20:45 Trabzonspor vs Rapid Wien (UEFA Konferans Ligi)"
+  },
+  {
+    id: "uefa-az-fb",
+    takimlar: "AZ Alkmaar - Fenerbahçe",
+    kisaAd: "AZ - FB (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Avrupa Ligi",
+    tip: "futbol",
+    gun: 7,
+    ay: 10, // 7 Kasım
+    yil: 2026,
+    saat: "23:00",
+    aciklama: "⚽ 23:00 AZ Alkmaar vs Fenerbahçe (UEFA Avrupa Ligi)"
+  },
+  {
     id: "milli-tur-wal",
     takimlar: "Türkiye - Galler",
     kisaAd: "Türkiye - Galler 🇹🇷",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
     lig: "UEFA Uluslar Ligi",
-    tip: "milli",
+    tip: "futbol",
     gun: 16,
-    ay: 10,
+    ay: 10, // 16 Kasım
     yil: 2026,
     saat: "20:45",
     aciklama: "🇹🇷 20:45 A Milli Takım: Türkiye vs Galler"
+  },
+
+  // ================= 2. VOLEYBOL (Filenin Sultanları - Türkiye Kadın A Milli Takımı) =================
+  {
+    id: "vol-tur-ita",
+    takimlar: "Türkiye - İtalya",
+    kisaAd: "Türkiye - İtalya 🏐",
+    brans: "voleybol",
+    bransAdi: "Voleybol",
+    ikon: "🏐",
+    lig: "Milletler Ligi / Özel Karşılaşma",
+    tip: "voleybol",
+    gun: 28,
+    ay: 9, // 28 Ekim
+    yil: 2026,
+    saat: "19:30",
+    aciklama: "🏐 19:30 Filenin Sultanları: Türkiye vs İtalya"
+  },
+  {
+    id: "vol-tur-srb",
+    takimlar: "Türkiye - Sırbistan",
+    kisaAd: "Türkiye - Sırbistan (Dev Karşılaşma) 🏐",
+    brans: "voleybol",
+    bransAdi: "Voleybol",
+    ikon: "🏐",
+    lig: "Kadın Voleybol Zirvesi",
+    tip: "voleybol",
+    gun: 31,
+    ay: 9, // 31 Ekim
+    yil: 2026,
+    saat: "20:00",
+    aciklama: "🏐 20:00 Filenin Sultanları: Türkiye vs Sırbistan"
+  },
+  {
+    id: "vol-tur-bra",
+    takimlar: "Türkiye - Brezilya",
+    kisaAd: "Türkiye - Brezilya 🏐",
+    brans: "voleybol",
+    bransAdi: "Voleybol",
+    ikon: "🏐",
+    lig: "Milletler Ligi",
+    tip: "voleybol",
+    gun: 5,
+    ay: 10, // 5 Kasım
+    yil: 2026,
+    saat: "18:30",
+    aciklama: "🏐 18:30 Filenin Sultanları: Türkiye vs Brezilya"
+  },
+  {
+    id: "vol-tur-pol",
+    takimlar: "Türkiye - Polonya",
+    kisaAd: "Türkiye - Polonya 🏐",
+    brans: "voleybol",
+    bransAdi: "Voleybol",
+    ikon: "🏐",
+    lig: "Kadın Voleybol",
+    tip: "voleybol",
+    gun: 12,
+    ay: 10, // 12 Kasım
+    yil: 2026,
+    saat: "20:00",
+    aciklama: "🏐 20:00 Filenin Sultanları: Türkiye vs Polonya"
+  },
+
+  // ================= 3. NBA (Tüm Önemli Maçlar) =================
+  {
+    id: "nba-lal-gsw",
+    takimlar: "LA Lakers - Golden State Warriors",
+    kisaAd: "Lakers - Warriors 🏀",
+    brans: "nba",
+    bransAdi: "NBA",
+    ikon: "🏀",
+    lig: "NBA Normal Sezon",
+    tip: "nba",
+    gun: 27,
+    ay: 9, // 27 Ekim
+    yil: 2026,
+    saat: "05:00",
+    aciklama: "🏀 05:00 NBA: LA Lakers vs Golden State Warriors"
+  },
+  {
+    id: "nba-bos-den",
+    takimlar: "Boston Celtics - Denver Nuggets",
+    kisaAd: "Celtics - Nuggets 🏀",
+    brans: "nba",
+    bransAdi: "NBA",
+    ikon: "🏀",
+    lig: "NBA Normal Sezon",
+    tip: "nba",
+    gun: 29,
+    ay: 9, // 29 Ekim
+    yil: 2026,
+    saat: "03:30",
+    aciklama: "🏀 03:30 NBA: Boston Celtics vs Denver Nuggets"
+  },
+  {
+    id: "nba-hou-lac",
+    takimlar: "Houston Rockets - LA Clippers",
+    kisaAd: "Rockets (Alperen) - Clippers 🏀",
+    brans: "nba",
+    bransAdi: "NBA",
+    ikon: "🏀",
+    lig: "NBA Normal Sezon",
+    tip: "nba",
+    gun: 2,
+    ay: 10, // 2 Kasım
+    yil: 2026,
+    saat: "04:00",
+    aciklama: "🏀 04:00 NBA: Alperen Şengün (Rockets) vs LA Clippers"
+  },
+  {
+    id: "nba-mil-dal",
+    takimlar: "Milwaukee Bucks - Dallas Mavericks",
+    kisaAd: "Bucks - Mavericks 🏀",
+    brans: "nba",
+    bransAdi: "NBA",
+    ikon: "🏀",
+    lig: "NBA Normal Sezon",
+    tip: "nba",
+    gun: 8,
+    ay: 10, // 8 Kasım
+    yil: 2026,
+    saat: "04:30",
+    aciklama: "🏀 04:30 NBA: Giannis vs Doncic (Bucks vs Mavericks)"
+  },
+  {
+    id: "nba-mia-phx",
+    takimlar: "Miami Heat - Phoenix Suns",
+    kisaAd: "Heat - Suns 🏀",
+    brans: "nba",
+    bransAdi: "NBA",
+    ikon: "🏀",
+    lig: "NBA Normal Sezon",
+    tip: "nba",
+    gun: 14,
+    ay: 10, // 14 Kasım
+    yil: 2026,
+    saat: "03:00",
+    aciklama: "🏀 03:00 NBA: Miami Heat vs Phoenix Suns"
+  },
+
+  // ================= 4. EUROLİG BASKET (Türk Takımları) =================
+  {
+    id: "euro-fb-rma",
+    takimlar: "Fenerbahçe Beko - Real Madrid",
+    kisaAd: "FB Beko - Real Madrid 🏆",
+    brans: "eurolig",
+    bransAdi: "EuroLig Basket",
+    ikon: "🏆",
+    lig: "EuroLeague",
+    tip: "eurolig",
+    gun: 29,
+    ay: 9, // 29 Ekim
+    yil: 2026,
+    saat: "20:45",
+    aciklama: "🏆 20:45 EuroLeague: Fenerbahçe Beko vs Real Madrid"
+  },
+  {
+    id: "euro-efs-pao",
+    takimlar: "Anadolu Efes - Panathinaikos",
+    kisaAd: "Efes - Panathinaikos 🏆",
+    brans: "eurolig",
+    bransAdi: "EuroLig Basket",
+    ikon: "🏆",
+    lig: "EuroLeague",
+    tip: "eurolig",
+    gun: 30,
+    ay: 9, // 30 Ekim
+    yil: 2026,
+    saat: "20:30",
+    aciklama: "🏆 20:30 EuroLeague: Anadolu Efes vs Panathinaikos"
+  },
+  {
+    id: "euro-oly-fb",
+    takimlar: "Olympiakos - Fenerbahçe Beko",
+    kisaAd: "Olympiakos - FB Beko 🏆",
+    brans: "eurolig",
+    bransAdi: "EuroLig Basket",
+    ikon: "🏆",
+    lig: "EuroLeague",
+    tip: "eurolig",
+    gun: 6,
+    ay: 10, // 6 Kasım
+    yil: 2026,
+    saat: "21:15",
+    aciklama: "🏆 21:15 EuroLeague: Olympiakos vs Fenerbahçe Beko"
+  },
+  {
+    id: "euro-efs-bar",
+    takimlar: "Anadolu Efes - Barcelona",
+    kisaAd: "Efes - Barcelona 🏆",
+    brans: "eurolig",
+    bransAdi: "EuroLig Basket",
+    ikon: "🏆",
+    lig: "EuroLeague",
+    tip: "eurolig",
+    gun: 7,
+    ay: 10, // 7 Kasım
+    yil: 2026,
+    saat: "20:30",
+    aciklama: "🏆 20:30 EuroLeague: Anadolu Efes vs Barcelona"
+  },
+  {
+    id: "euro-fb-mta",
+    takimlar: "Fenerbahçe Beko - Maccabi Tel Aviv",
+    kisaAd: "FB Beko - Maccabi 🏆",
+    brans: "eurolig",
+    bransAdi: "EuroLig Basket",
+    ikon: "🏆",
+    lig: "EuroLeague",
+    tip: "eurolig",
+    gun: 13,
+    ay: 10, // 13 Kasım
+    yil: 2026,
+    saat: "20:45",
+    aciklama: "🏆 20:45 EuroLeague: Fenerbahçe Beko vs Maccabi Tel Aviv"
+  },
+
+  // ================= 5. TENİS (Önemli Turnuva Karşılaşmaları) =================
+  {
+    id: "ten-alc-sin",
+    takimlar: "Carlos Alcaraz - Jannik Sinner",
+    kisaAd: "Alcaraz - Sinner 🎾",
+    brans: "tenis",
+    bransAdi: "Tenis",
+    ikon: "🎾",
+    lig: "Paris Masters Yarı Final",
+    tip: "tenis",
+    gun: 31,
+    ay: 9, // 31 Ekim
+    yil: 2026,
+    saat: "16:30",
+    aciklama: "🎾 16:30 Paris Masters: Carlos Alcaraz vs Jannik Sinner"
+  },
+  {
+    id: "ten-paris-final",
+    takimlar: "Paris Masters Final",
+    kisaAd: "Paris Masters Final 🎾",
+    brans: "tenis",
+    bransAdi: "Tenis",
+    ikon: "🎾",
+    lig: "ATP Masters 1000",
+    tip: "tenis",
+    gun: 1,
+    ay: 10, // 1 Kasım
+    yil: 2026,
+    saat: "17:00",
+    aciklama: "🎾 17:00 Paris Masters Şampiyonluk Maçı"
+  },
+  {
+    id: "ten-djo-med",
+    takimlar: "Novak Djokovic - Daniil Medvedev",
+    kisaAd: "Djokovic - Medvedev 🎾",
+    brans: "tenis",
+    bransAdi: "Tenis",
+    ikon: "🎾",
+    lig: "ATP Finalleri (Torino)",
+    tip: "tenis",
+    gun: 10,
+    ay: 10, // 10 Kasım
+    yil: 2026,
+    saat: "16:00",
+    aciklama: "🎾 16:00 ATP Finalleri: Novak Djokovic vs Daniil Medvedev"
+  },
+  {
+    id: "ten-atp-final",
+    takimlar: "ATP Finalleri Sezon Finali",
+    kisaAd: "ATP Finalleri Final 🎾",
+    brans: "tenis",
+    bransAdi: "Tenis",
+    ikon: "🎾",
+    lig: "ATP Finals",
+    tip: "tenis",
+    gun: 15,
+    ay: 10, // 15 Kasım
+    yil: 2026,
+    saat: "18:00",
+    aciklama: "🎾 18:00 ATP Finalleri Sezon Sonu Şampiyonluk Maçı"
+  },
+
+  // ================= 6. FORMULA 1 (Tüm Yarışlar) =================
+  {
+    id: "f1-mexico-gp",
+    takimlar: "Formula 1 Meksika Grand Prix",
+    kisaAd: "Meksika GP (Yarış) 🏎️",
+    brans: "f1",
+    bransAdi: "Formula 1",
+    ikon: "🏎️",
+    lig: "Formula 1 Dünya Şampiyonası",
+    tip: "f1",
+    gun: 26,
+    ay: 9, // 26 Ekim
+    yil: 2026,
+    saat: "23:00",
+    aciklama: "🏎️ 23:00 Formula 1: Meksika GP Ana Yarış"
+  },
+  {
+    id: "f1-brazil-sprint",
+    takimlar: "Formula 1 Brezilya GP (Sprint)",
+    kisaAd: "Brezilya GP (Sprint) 🏎️",
+    brans: "f1",
+    bransAdi: "Formula 1",
+    ikon: "🏎️",
+    lig: "Formula 1 Dünya Şampiyonası",
+    tip: "f1",
+    gun: 31,
+    ay: 9, // 31 Ekim
+    yil: 2026,
+    saat: "17:00",
+    aciklama: "🏎️ 17:00 Formula 1: Brezilya GP Sprint Yarışı"
+  },
+  {
+    id: "f1-brazil-gp",
+    takimlar: "Formula 1 Brezilya Grand Prix",
+    kisaAd: "Brezilya GP (Ana Yarış) 🏎️",
+    brans: "f1",
+    bransAdi: "Formula 1",
+    ikon: "🏎️",
+    lig: "Formula 1 Dünya Şampiyonası",
+    tip: "f1",
+    gun: 1,
+    ay: 10, // 1 Kasım
+    yil: 2026,
+    saat: "20:00",
+    aciklama: "🏎️ 20:00 Formula 1: Brezilya GP Ana Yarış"
+  },
+  {
+    id: "f1-vegas-gp",
+    takimlar: "Formula 1 Las Vegas Grand Prix",
+    kisaAd: "Las Vegas GP (Gece Yarışı) 🏎️",
+    brans: "f1",
+    bransAdi: "Formula 1",
+    ikon: "🏎️",
+    lig: "Formula 1 Dünya Şampiyonası",
+    tip: "f1",
+    gun: 15,
+    ay: 10, // 15 Kasım
+    yil: 2026,
+    saat: "09:00",
+    aciklama: "🏎️ 09:00 Formula 1: Las Vegas GP Ana Yarış"
   }
 ];
 
@@ -1167,7 +1700,7 @@ function hesapla15DkOnce(saatStr) {
   return `${String(saat).padStart(2, "0")}:${String(dakika).padStart(2, "0")}`;
 }
 
-// 1. Gemini AI Maç Etkinliği Detay Modalı (Ev Sahibi - Deplasman, Lig, Saat, Butonlar)
+// 1. Gemini AI Karşılaşma Etkinliği Detay Modalı (Futbol, Voleybol, NBA, EuroLig, Tenis, F1)
 function openGeminiMatchModal(matchId) {
   const match = (state.geminiMatches || []).find(m => m.id === matchId);
   if (!match) return;
@@ -1180,7 +1713,12 @@ function openGeminiMatchModal(matchId) {
 
   if (!modal || !modalBody || !modalFooter) return;
 
-  const [evSahibi, deplasman] = match.takimlar.includes(" - ") 
+  const brans = match.brans || (match.tip === "milli" ? "futbol" : (match.tip || "futbol"));
+  const icon = match.ikon || (brans === "voleybol" ? "🏐" : brans === "nba" ? "🏀" : brans === "eurolig" ? "🏆" : brans === "tenis" ? "🎾" : brans === "f1" ? "🏎️" : "⚽");
+  const bransAdi = match.bransAdi || (brans === "voleybol" ? "Voleybol" : brans === "nba" ? "NBA" : brans === "eurolig" ? "EuroLig Basket" : brans === "tenis" ? "Tenis" : brans === "f1" ? "Formula 1" : "Futbol");
+
+  const isF1 = brans === "f1";
+  const [evSahibi, deplasman] = (!isF1 && match.takimlar.includes(" - ")) 
     ? match.takimlar.split(" - ") 
     : [match.takimlar, ""];
 
@@ -1189,34 +1727,34 @@ function openGeminiMatchModal(matchId) {
   const gunAdi = GUN_ADLARI[(gunDate.getDay() + 6) % 7] || "";
   const formattedTarih = `${match.gun} ${ayAdi} ${match.yil} (${gunAdi})`;
 
-  if (modalIcon) modalIcon.textContent = match.tip === "milli" ? "🇹🇷" : "⚽";
-  if (modalTitleText) modalTitleText.textContent = "Gemini AI Maç Etkinliği";
+  if (modalIcon) modalIcon.textContent = icon;
+  if (modalTitleText) modalTitleText.textContent = `${bransAdi} Karşılaşması`;
 
   modalBody.innerHTML = `
     <div class="event-detail-card">
       <div class="event-detail-header-card">
         <div class="event-detail-teams">${escapeHtml(evSahibi)} ${deplasman ? `<span style="color:var(--text-muted);font-weight:400;font-size:0.95rem;margin:0 6px;">vs</span> ${escapeHtml(deplasman)}` : ""}</div>
         <div class="event-detail-sub">
-          <span class="ai-badge">${escapeHtml(match.lig || "Futbol")}</span>
+          <span class="ai-badge">${icon} ${escapeHtml(match.lig || bransAdi)}</span>
           <span class="stat-badge primary">${escapeHtml(match.saat)}</span>
         </div>
       </div>
 
       <div class="event-detail-grid">
         <div class="event-detail-row">
-          <span class="event-detail-label">Ev Sahibi</span>
+          <span class="event-detail-label">${isF1 ? "Grand Prix / Yarış" : "Ev Sahibi / 1. Taraf"}</span>
           <span class="event-detail-value">${escapeHtml(evSahibi)}</span>
         </div>
         <div class="event-detail-row">
-          <span class="event-detail-label">Deplasman</span>
-          <span class="event-detail-value">${escapeHtml(deplasman || "-")}</span>
+          <span class="event-detail-label">${isF1 ? "Şampiyona" : "Deplasman / 2. Taraf"}</span>
+          <span class="event-detail-value">${escapeHtml(deplasman || (isF1 ? "F1 Dünya Şampiyonası" : "-"))}</span>
         </div>
         <div class="event-detail-row">
           <span class="event-detail-label">Lig / Turnuva</span>
-          <span class="event-detail-value">${escapeHtml(match.lig || "Süper Lig")}</span>
+          <span class="event-detail-value">${escapeHtml(match.lig || bransAdi)}</span>
         </div>
         <div class="event-detail-row">
-          <span class="event-detail-label">Maç Saati</span>
+          <span class="event-detail-label">Başlama Saati</span>
           <span class="event-detail-value">⏰ ${escapeHtml(match.saat)}</span>
         </div>
       </div>
@@ -1232,11 +1770,11 @@ function openGeminiMatchModal(matchId) {
     <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
     <button type="button" class="btn btn-danger" onclick="removeGeminiMatch('${escapeHtml(match.id)}')">
       <span>🗑️</span>
-      <span>Maçı Takvimden Kaldır</span>
+      <span>Takvimden Kaldır</span>
     </button>
     <button type="button" class="btn btn-primary" onclick="geminiMacaYayinEkle('${escapeHtml(match.id)}')">
       <span>➕</span>
-      <span>Bu Maç İçin Yayın Ekle</span>
+      <span>Bu Karşılaşma İçin Yayın Ekle</span>
     </button>
   `;
 
@@ -1432,15 +1970,20 @@ function geminiMacaYayinEkle(arg1, argSaat, argGun, argAyIdx) {
   const saatInput = document.getElementById("inputSaat");
   if (saatInput) saatInput.value = yayinSaati;
 
-  // 6. Ek not bilgi bölümüne "X - Y takımı maçı" yaz
+  // 6. Ek not bilgi bölümüne "X - Y takımı maçı" veya "X Yarışı" yaz
   const bilgiInput = document.getElementById("inputBilgi");
   if (bilgiInput) {
-    bilgiInput.value = `${takimlar} maçı`;
+    if (match && match.brans === "f1") {
+      bilgiInput.value = `${takimlar} Yarışı`;
+    } else {
+      bilgiInput.value = `${takimlar} maçı`;
+    }
   }
 
   // 7. Modalı aç (seçilen program ve saati koruyarak)
   openAddModal(false);
-  showToast(`⚽ "${takimlar}" maçı için Canlı Maç Sohbeti yayını 15 dk öncesine (${yayinSaati}) planlandı.`, "info");
+  const bransIkon = match ? (match.ikon || "🏆") : "⚽";
+  showToast(`${bransIkon} "${takimlar}" için Canlı Maç Sohbeti yayını 15 dk öncesine (${yayinSaati}) planlandı.`, "info");
 }
 
 function checkGeminiAiAutoRun() {

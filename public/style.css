@@ -1212,16 +1212,29 @@ body {
   -webkit-box-orient: vertical;
 }
 
+/* Kanal Renkleri: Uykusuz Tosba = Sarı, Radio Mocas = Mor */
 .cal-event-pill.tosba {
-  background: rgba(6, 182, 212, 0.18);
-  color: #67e8f9;
-  border-left: 3px solid #06b6d4;
+  background: rgba(245, 158, 11, 0.22);
+  color: #fef08a;
+  border-left: 3px solid #eab308;
+  font-weight: 600;
+}
+
+.cal-event-pill.tosba:hover {
+  background: rgba(245, 158, 11, 0.35);
+  color: #ffffff;
 }
 
 .cal-event-pill.mocas {
-  background: rgba(168, 85, 247, 0.18);
-  color: #d8b4fe;
+  background: rgba(168, 85, 247, 0.2);
+  color: #e9d5ff;
   border-left: 3px solid #a855f7;
+  font-weight: 600;
+}
+
+.cal-event-pill.mocas:hover {
+  background: rgba(168, 85, 247, 0.32);
+  color: #ffffff;
 }
 
 .cal-event-pill.done {
@@ -1237,42 +1250,253 @@ body {
   text-decoration: line-through;
 }
 
+/* Gemini AI Spor Karşılaşmaları (Futbol, Voleybol, NBA, EuroLig, Tenis, F1) */
 .cal-event-pill.gemini-match {
-  background: rgba(16, 185, 129, 0.16);
-  color: #6ee7b7;
-  border-left: 3px solid #10b981;
   font-weight: 600;
   cursor: pointer;
   letter-spacing: -0.01em;
+  transition: all 0.18s ease;
 }
 
-.cal-event-pill.gemini-match:hover {
-  background: rgba(16, 185, 129, 0.28);
+/* 1. Futbol: Yeşil */
+.cal-event-pill.gemini-match.futbol,
+.cal-event-pill.gemini-match.lig {
+  background: rgba(16, 185, 129, 0.18);
   color: #a7f3d0;
+  border-left: 3px solid #10b981;
+}
+
+.cal-event-pill.gemini-match.futbol:hover,
+.cal-event-pill.gemini-match.lig:hover {
+  background: rgba(16, 185, 129, 0.3);
+  color: #ffffff;
   transform: translateX(2px);
 }
 
 .cal-event-pill.gemini-match.derbi {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fde68a;
-  border-left: 3px solid #f59e0b;
-}
-
-.cal-event-pill.gemini-match.derbi:hover {
-  background: rgba(245, 158, 11, 0.35);
-  color: #fef08a;
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+  border-left: 3px solid #059669;
 }
 
 .cal-event-pill.gemini-match.milli {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fecaca;
-  border-left: 3px solid #ef4444;
+  background: rgba(16, 185, 129, 0.22);
+  color: #a7f3d0;
+  border-left: 3px solid #10b981;
 }
 
-.cal-event-pill.gemini-match.milli:hover {
-  background: rgba(239, 68, 68, 0.35);
-  color: #fee2e2;
+/* 2. Voleybol: Pembe / Mercan (Filenin Sultanları) */
+.cal-event-pill.gemini-match.voleybol {
+  background: rgba(236, 72, 153, 0.2);
+  color: #fbcfe8;
+  border-left: 3px solid #ec4899;
 }
+
+.cal-event-pill.gemini-match.voleybol:hover {
+  background: rgba(236, 72, 153, 0.32);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* 3. NBA: Klasik Basketbol Turuncusu */
+.cal-event-pill.gemini-match.nba {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fed7aa;
+  border-left: 3px solid #f97316;
+}
+
+.cal-event-pill.gemini-match.nba:hover {
+  background: rgba(249, 115, 22, 0.32);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* 4. EuroLig Basket: Canlı Mavi / Lacivert */
+.cal-event-pill.gemini-match.eurolig {
+  background: rgba(2, 132, 199, 0.2);
+  color: #bae6fd;
+  border-left: 3px solid #0284c7;
+}
+
+.cal-event-pill.gemini-match.eurolig:hover {
+  background: rgba(2, 132, 199, 0.32);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* 5. Tenis: Limon Sarısı / Kort Yeşili */
+.cal-event-pill.gemini-match.tenis {
+  background: rgba(132, 204, 22, 0.2);
+  color: #d9f99d;
+  border-left: 3px solid #84cc16;
+}
+
+.cal-event-pill.gemini-match.tenis:hover {
+  background: rgba(132, 204, 22, 0.32);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* 6. Formula 1: Yarış Kırmızısı */
+.cal-event-pill.gemini-match.f1 {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fecaca;
+  border-left: 3px solid #dc2626;
+}
+
+.cal-event-pill.gemini-match.f1:hover {
+  background: rgba(220, 38, 38, 0.32);
+  color: #ffffff;
+  transform: translateX(2px);
+}
+
+/* Karşılaşmalar Filtre Butonu & Dropdown Menüsü */
+.matches-filter-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.btn-matches-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-glass);
+  color: var(--text-main);
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.btn-matches-filter:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.btn-matches-filter.open {
+  background: rgba(14, 165, 233, 0.15);
+  border-color: #0ea5e9;
+  color: #38bdf8;
+}
+
+.filter-arrow-icon {
+  font-size: 0.72rem;
+  transition: transform 0.2s ease;
+}
+
+.btn-matches-filter.open .filter-arrow-icon {
+  transform: rotate(180deg);
+}
+
+.matches-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #111827;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+  padding: 10px 8px;
+  min-width: 220px;
+  z-index: 1050;
+  display: none;
+  flex-direction: column;
+  gap: 3px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.matches-filter-dropdown.show {
+  display: flex;
+  animation: dropdownFadeIn 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.filter-dropdown-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 4px 10px 6px;
+  font-weight: 700;
+}
+
+.filter-dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 6px;
+}
+
+.filter-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: var(--text-main);
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.filter-checkbox-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.filter-checkbox-item input[type="checkbox"] {
+  display: none;
+}
+
+.custom-checkbox {
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.filter-checkbox-item input[type="checkbox"]:checked + .custom-checkbox {
+  background: #0284c7;
+  border-color: #38bdf8;
+}
+
+.filter-checkbox-item input[type="checkbox"]:checked + .custom-checkbox::after {
+  content: "✓";
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sport-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-futbol { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
+.dot-voleybol { background: #ec4899; box-shadow: 0 0 6px rgba(236, 72, 153, 0.6); }
+.dot-nba { background: #f97316; box-shadow: 0 0 6px rgba(249, 115, 22, 0.6); }
+.dot-eurolig { background: #0284c7; box-shadow: 0 0 6px rgba(2, 132, 199, 0.6); }
+.dot-tenis { background: #84cc16; box-shadow: 0 0 6px rgba(132, 204, 22, 0.6); }
+.dot-f1 { background: #dc2626; box-shadow: 0 0 6px rgba(220, 38, 38, 0.6); }
 
 /* =====================================================================
    CANLI CHAT BİLEŞENİ (Ufuk, Yiğit & Cem Yıldırım)

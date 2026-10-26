@@ -8,7 +8,7 @@
   <meta name="description"
     content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=4.9">
+  <link rel="stylesheet" href="style.css?v=5.0">
   <script>
     (function() {
       try {
@@ -159,10 +159,68 @@
             <span>✨</span> Gemini AI Aktif
           </span>
         </div>
-        <div class="cal-nav-group">
-          <button class="cal-nav-arrow-btn" id="prevMonthBtn" title="Önceki Ay" aria-label="Önceki Ay">&lt;</button>
-          <button class="cal-nav-today-btn" id="todayMonthBtn" title="Bugüne Dön">Bugün</button>
-          <button class="cal-nav-arrow-btn" id="nextMonthBtn" title="Sonraki Ay" aria-label="Sonraki Ay">&gt;</button>
+        <div class="calendar-controls-right" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <!-- Karşılaşmalar Filtre Butonu & Açılır Menüsü -->
+          <div class="matches-filter-wrapper" id="matchesFilterWrapper">
+            <button class="btn-matches-filter" id="btnMatchesFilter" type="button" aria-expanded="false" aria-haspopup="true" title="Karşılaşma Branşlarını Filtrele">
+              <span>🏆</span>
+              <span>Karşılaşmalar</span>
+              <span class="filter-arrow-icon" id="matchesFilterArrow">▾</span>
+            </button>
+            <div class="matches-filter-dropdown" id="matchesFilterDropdown">
+              <div class="filter-dropdown-header">
+                <span>Karşılaşma Branşları</span>
+              </div>
+              <label class="filter-checkbox-item select-all">
+                <input type="checkbox" id="filterSportAll" checked>
+                <span class="custom-checkbox"></span>
+                <span class="filter-item-name">Tümü</span>
+              </label>
+              <div class="filter-dropdown-divider"></div>
+              <label class="filter-checkbox-item" data-sport="futbol">
+                <input type="checkbox" class="sport-checkbox" value="futbol" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-futbol"></span>
+                <span class="filter-item-name">Futbol</span>
+              </label>
+              <label class="filter-checkbox-item" data-sport="voleybol">
+                <input type="checkbox" class="sport-checkbox" value="voleybol" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-voleybol"></span>
+                <span class="filter-item-name">Voleybol</span>
+              </label>
+              <label class="filter-checkbox-item" data-sport="nba">
+                <input type="checkbox" class="sport-checkbox" value="nba" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-nba"></span>
+                <span class="filter-item-name">NBA</span>
+              </label>
+              <label class="filter-checkbox-item" data-sport="eurolig">
+                <input type="checkbox" class="sport-checkbox" value="eurolig" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-eurolig"></span>
+                <span class="filter-item-name">EuroLig Basket</span>
+              </label>
+              <label class="filter-checkbox-item" data-sport="tenis">
+                <input type="checkbox" class="sport-checkbox" value="tenis" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-tenis"></span>
+                <span class="filter-item-name">Tenis</span>
+              </label>
+              <label class="filter-checkbox-item" data-sport="f1">
+                <input type="checkbox" class="sport-checkbox" value="f1" checked>
+                <span class="custom-checkbox"></span>
+                <span class="sport-badge-dot dot-f1"></span>
+                <span class="filter-item-name">Formula 1</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="cal-nav-group">
+            <button class="cal-nav-arrow-btn" id="prevMonthBtn" title="Önceki Ay" aria-label="Önceki Ay">&lt;</button>
+            <button class="cal-nav-today-btn" id="todayMonthBtn" title="Bugüne Dön">Bugün</button>
+            <button class="cal-nav-arrow-btn" id="nextMonthBtn" title="Sonraki Ay" aria-label="Sonraki Ay">&gt;</button>
+          </div>
         </div>
       </div>
 
@@ -304,7 +362,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=4.9"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 
 </html>
