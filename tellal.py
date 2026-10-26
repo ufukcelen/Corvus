@@ -37,8 +37,15 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.2"
+SURUM = "1.4.5"
 SURUM_NOTLARI = {
+    "1.4.5": [
+        "Gemini AI Maç Takip Asistanı: Türkiye A Milli Takımı ve 4 Büyüklerin (GS, FB, BJK, TS) derbi ve lig maçları otomatik taranarak takvime eklendi.",
+        "Normal Takvim ve Yayın Takvimi Ayrımı: Gemini AI maçları yayın takvimini ve masaüstü uygulamasını kirletmez; doğrudan web takvim gridinde gösterilir.",
+        "Tellal Cloud Web Portalı: tellal-otomasyon.web.app üzerinden masaüstü (.app) ve bulut arasında anlık çift yönlü Firebase senkronizasyonu tamamlandı.",
+        "Canlı Ekip Chat Entegrasyonu: Ufuk, Yiğit ve Cem Yıldırım için çoklu kullanıcı desteği ve yapay zeka bildirimli canlı sohbet kutusu eklendi.",
+        "Aylık Takvim Arayüzü: Bugünün kırmızı rozeti, ay navigasyonu ve tek güne özel yayın eşleme algoritmasıyla modern edge-to-edge karanlık tema takvimi devreye alındı.",
+    ],
     "1.4.2": [
         "Tellal.app çift tıklandığında fazladan boş Terminal penceresi açılma sorunu giderildi.",
         "Ana menüye 'Chat Refresh Yenile(R)' eklendi; R tuşuna basıldığında anında ekrana yazılmadan takvim ve chat yenilenir.",
