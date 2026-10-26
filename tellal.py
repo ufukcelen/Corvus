@@ -1507,12 +1507,13 @@ NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832"
 FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db"
 
 YAYIN_SECENEKLERI = [
-    "Bfü Haftalık Program",
+    "Haftalık Program",
+    "Canlı Maç Sohbetleri",
     "Canlı Maç Sohbeti",
     "Maç Sonu",
     "Tek Maçtan Yatanlar",
     "FC27 Kariyer",
-    "Tosba Lojistik",
+    "Tosba Lojistik (ETS2)",
     "Filtresiz Memleket Havası",
     "Albert ve Cem",
     "Mocas Bey ve Radyosu",
@@ -1538,14 +1539,15 @@ def dinamik_gunleri_al():
 
 
 def takvim_filtrele_ve_duzenle(satirlar):
-    """Gemini AI maçlarını yayın takviminden (.app ve takvim.txt) tamamen ayıklar ve numaralandırmayı düzeltir."""
+    """Gemini AI bot satırlarını yayın takviminden ayıklar; Canlı Maç Sohbetleri gibi gerçek yayınları korur ve numaralandırmayı düzeltir."""
     temiz = []
     for s in satirlar:
         if not s or not s.strip():
             continue
         s_clean = s.strip()
-        # Gemini AI maçlarını ve yapay maç satırlarını ayıkla
-        if "Gemini AI" in s_clean or ("Canlı Maç" in s_clean and ("⚽" in s_clean or "Derbi" in s_clean or "Sohbeti" in s_clean)):
+        # Sadece ve sadece Gemini AI botuna ait yapay satırları ayıkla
+        # "Canlı Maç Sohbetleri" ve "Canlı Maç Sohbeti" gerçek yayınlardır, korunur!
+        if "Gemini AI" in s_clean or "[Gemini AI]" in s_clean or s_clean.startswith("Gemini AI:"):
             continue
         temiz.append(s_clean)
 

@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html lang="tr">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tellal Cloud — YouTube Yayın Takvimi & Planlama Portalı</title>
-  <meta name="description" content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
+  <meta name="description"
+    content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=4.4">
+  <link rel="stylesheet" href="style.css?v=4.5">
 </head>
+
 <body>
 
   <!-- Arka Plan Işık Efektleri -->
@@ -18,11 +21,12 @@
   </div>
 
   <div class="app-container">
-    
+
     <!-- Üst Başlık (Navbar) -->
     <header class="header-nav">
       <div class="brand-section">
-        <img src="logo.png" alt="Tellal Logo" class="brand-avatar-img" style="width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; max-height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; display: block;">
+        <img src="logo.png" alt="Tellal Logo" class="brand-avatar-img"
+          style="width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; max-height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; display: block;">
         <div class="brand-title">
           <h1>Tellal Cloud <span class="brand-badge">Hub</span></h1>
           <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
@@ -39,7 +43,8 @@
         </div>
 
         <!-- Aktif Kullanıcı Rozeti -->
-        <div class="user-badge" id="btnSwitchUser" onclick="switchUser()" title="Kullanıcı ismini değiştirmek için tıklayın">
+        <div class="user-badge" id="btnSwitchUser" onclick="switchUser()"
+          title="Kullanıcı ismini değiştirmek için tıklayın">
           <span>👤</span>
           <span id="activeUserName">Cem Yıldırım</span>
           <span style="font-size: 0.7rem; opacity: 0.6;">✎</span>
@@ -188,13 +193,8 @@
 
       <!-- Mesaj Gönderme Formu -->
       <form id="chatForm" class="chat-input-wrapper">
-        <input 
-          type="text" 
-          id="chatInput" 
-          placeholder="Cem Yıldırım olarak ekip arkadaşlarına mesaj yaz..." 
-          autocomplete="off" 
-          required
-        >
+        <input type="text" id="chatInput" placeholder="Cem Yıldırım olarak ekip arkadaşlarına mesaj yaz..."
+          autocomplete="off" required>
         <button type="submit" class="chat-send-btn" id="chatSendBtn">
           <span>Gönder</span>
           <span>➤</span>
@@ -249,7 +249,8 @@
           <div class="form-row">
             <div class="form-group">
               <label for="inputSaat">Yayın Saati</label>
-              <input type="text" id="inputSaat" placeholder="20:00" value="20:00" pattern="^([01]\d|2[0-3]):[0-5]\d$" title="SS:DD formatında olmalıdır (Örn: 20:30)" required>
+              <input type="text" id="inputSaat" placeholder="20:00" value="20:00" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                title="SS:DD formatında olmalıdır (Örn: 20:30)" required>
             </div>
 
             <div class="form-group">
@@ -274,6 +275,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=4.4"></script>
+  <script src="app.js?v=4.5"></script>
 </body>
+
 </html>

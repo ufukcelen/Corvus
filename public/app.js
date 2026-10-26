@@ -76,8 +76,8 @@ async function initCalendarData() {
   if (localData) {
     try {
       state.yayinlar = JSON.parse(localData);
-      // Yayın takviminde kalmış olabilecek eski Gemini maç satırlarını ayıkla
-      state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("Canlı Maç Sohbeti") || y.includes("Futbol Maçı:")));
+      // Yayın takviminde kalmış olabilecek eski Gemini bot satırlarını ayıkla
+      state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("[Gemini AI]")));
     } catch (e) {
       state.yayinlar = [];
     }
@@ -447,7 +447,7 @@ async function senkronizeEtUzak(bildirimVer = true) {
           gelenSatirlar = [];
         } else if (Array.isArray(data.satirlar)) {
           // Yayın takviminde sadece gerçek yayınlar kalır, Gemini AI maçları normal takvim gridine aittir
-          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") || s.includes("Canlı Maç Sohbeti") || s.includes("Futbol Maçı:")));
+          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") || s.includes("[Gemini AI]")));
         }
 
         // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
@@ -546,6 +546,7 @@ function setupEventListeners() {
 const KANAL_PROGRAMLARI = {
   "Uykusuz Tosba": [
     { ad: "Haftalık Program", saat: "20:00" },
+    { ad: "Canlı Maç Sohbetleri", saat: "20:30" },
     { ad: "Canlı Maç Sohbeti", saat: "20:30" },
     { ad: "Maç Sonu", saat: "22:45" },
     { ad: "Tek Maçtan Yatanlar", saat: "23:00" },
@@ -779,7 +780,7 @@ function renderMonthCalendar() {
 
     // A) Bu güne denk gelen GERÇEK YouTube yayınları (Yayın Takvimi öğeleri)
     const matchingBroadcasts = parsedItems.filter(item => {
-      if (item.bilgi.includes("Gemini AI") || item.yayinAdi.includes("Canlı Maç Sohbeti")) return false;
+      if (item.bilgi.includes("Gemini AI") || item.yayinAdi.includes("Gemini AI")) return false;
       return broadcastMatchesDay(item, d, state.calendarMonth, state.calendarYear, dayName, isToday, todayDate);
     });
 
@@ -1079,14 +1080,14 @@ async function runGeminiAiMatchScanner(isManual = false) {
   state.geminiMatches = [...GEMINI_AI_FIXTURES];
   localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
 
-  // 2. Eğer daha önceden state.yayinlar'a yanlışlıkla girmiş maç satırları varsa yayın takviminden tamamen sil
+  // 2. Eğer daha önceden state.yayinlar'a yanlışlıkla girmiş bot satırları varsa yayın takviminden tamamen sil
   const oncekiUzunluk = state.yayinlar.length;
-  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("Canlı Maç Sohbeti") || y.includes("Futbol Maçı:")));
+  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("[Gemini AI]")));
   if (state.yayinlar.length !== oncekiUzunluk) {
     kaydetYerel();
     renderCalendar();
     updateStats();
-    await yayinlariBulutaGonder("Yayın takviminden maçlar temizlendi (sadece normal takvim hücresine işlendi).");
+    await yayinlariBulutaGonder("Yayın takviminden Gemini AI satırları temizlendi.");
   }
 
   // 3. Normal takvimi yeniden render et (maçlar takvim hücrelerinde parlayacak)
