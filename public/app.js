@@ -398,35 +398,36 @@ async function senkronizeEtUzak(bildirimVer = true) {
   const syncBtn = document.getElementById("manualSyncBtn");
   if (syncBtn) syncBtn.classList.add("rotating");
 
-  let guncellendi = false;
+  let basarili = false;
 
-  // 1. Önce Firebase Realtime Database'den en güncel takvimi çek
+  // 1. Birincil ve Ana Veri Kaynağı: Firebase Realtime Database
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/takvim.json?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
+      basarili = true;
       if (data && Array.isArray(data.satirlar)) {
+        // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
         if (JSON.stringify(data.satirlar) !== JSON.stringify(state.yayinlar)) {
           state.yayinlar = data.satirlar;
           kaydetYerel();
           renderCalendar();
           updateStats();
-          guncellendi = true;
           if (bildirimVer) {
             const kimden = data.guncelleyen ? `(${data.guncelleyen})` : "";
-            showToast(`✓ Firebase Buluttan en güncel takvim eşitlendi! ${kimden}`, "success");
+            showToast(`✓ Buluttan en güncel takvim eşitlendi! ${kimden}`, "success");
           }
         } else if (bildirimVer) {
-          showToast("Takvim güncel.", "info");
+          showToast("Takvim zaten güncel.", "info");
         }
       }
     }
   } catch (err) {
-    console.warn("Firebase RTDB okunamadı, Ntfy deneniyor:", err);
+    console.warn("Firebase RTDB okunamadı:", err);
   }
 
-  // 2. Eğer Firebase'den alınamadıysa fallback olarak Ntfy'yi dene
-  if (!guncellendi) {
+  // 2. Yalnızca Firebase'e ulaşılamadıysa ve yerel liste boşsa Ntfy fallback'i dene
+  if (!basarili && state.yayinlar.length === 0) {
     try {
       const url = `https://ntfy.sh/${NTFY_TOPIC_TAKVIM}/json?poll=1&since=all`;
       const res = await fetch(url);
@@ -446,23 +447,17 @@ async function senkronizeEtUzak(bildirimVer = true) {
           } catch (e) {}
         }
 
-        if (enYeniMesaj && enYeniMesaj.message) {
-          let msg = enYeniMesaj.message;
-          if (msg === "__BOS_TAKVIM__") msg = "";
-          const gelenSatirlar = msg.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-          
-          if (JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
+        if (enYeniMesaj && enYeniMesaj.message && enYeniMesaj.message !== "__BOS_TAKVIM__") {
+          const gelenSatirlar = enYeniMesaj.message.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+          if (gelenSatirlar.length > 0 && JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
             state.yayinlar = gelenSatirlar;
             kaydetYerel();
             renderCalendar();
             updateStats();
-            if (bildirimVer) showToast("✓ Buluttan en güncel yayın takvimi eşitlendi!", "success");
           }
         }
       }
-    } catch (err) {
-      if (bildirimVer && !guncellendi) showToast("Bağlantı hatası: Sunucuya ulaşılamadı.", "error");
-    }
+    } catch (err) {}
   }
 
   state.isSyncing = false;
