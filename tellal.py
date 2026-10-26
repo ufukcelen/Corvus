@@ -37,8 +37,15 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.6"
+SURUM = "1.4.7"
 SURUM_NOTLARI = {
+    "1.4.7": [
+        "Tellal.app Masaüstü Dinamik Yol Eşitlemesi: .script_v5 marker'ı proje dizinini kontrol edecek şekilde güncellendi; farklı Mac veya taşınan klasörlerde açılmama sorunu tamamen giderildi.",
+        "Tireli Maç ve Yayın Adı Koruması: 'Galatasaray - Fenerbahçe' gibi adında tire bulunan yayınların parçalanması, saat/gün kayması ve durum simgelerinin yanlış yere eklenmesi engellendi.",
+        "Durum Simgesi Çakışma Önleme: İptal edilen yayına check işareti verildiğinde eski ❌ simgesi otomatik temizlenir; çift simge (❌ ✅) oluşumu engellendi.",
+        "Firebase RTDB Veri Tipi Toleransı: Buluttan gelen veri yapısının (Object / Array) her iki formatta da güvenle çözümlenmesi sağlandı.",
+        "Performans & Arayüz İyileştirmeleri: Terminal girdi tamponu temizliği (tcflush) tüm sihirbazlara eklendi, mükerrer bildirim ve ağ istekleri optimize edildi.",
+    ],
     "1.4.6": [
         "Tellal.app macOS İzin Hatası (-1743) Giderildi: 'System Events' gereksinimi kaldırılarak Terminal doğrudan açılabilecek hale getirildi.",
         "Yayın Takvimi İzolasyonu: Gemini AI maç etkinlikleri yayın takviminden (.app ve takvim.txt) tamamen arındırıldı; yalnız web aylık takvim hücrelerinde gösterilir.",
@@ -266,9 +273,6 @@ def guncelleme_kontrol():
         console.print(f"[bold green][GÜNCELLEME][/bold green] {basarili} dosya güncellendi. Program açılıyor...\n")
 
 
-guncelleme_kontrol()
-
-
 def api_anahtari_oku():
     yol = os.path.join(SCRIPT_DIR, "api.txt")
     try:
@@ -411,13 +415,20 @@ def masaustu_app_olustur():
         except Exception:
             return
     else:
-        # Uygulama zaten var: System Events yetki hatası (-1743) içermeyen güncel script'i zorla derle
+        # Uygulama zaten var: Script içindeki çalışma dizini (SCRIPT_DIR) değişmişse veya eski sürümse otomatik yeniden derle
         try:
             marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v5")
-            if not os.path.exists(marker) and os.path.exists(main_scpt):
+            kayitli_yol = ""
+            if os.path.exists(marker):
+                try:
+                    with open(marker, "r", encoding="utf-8") as mf:
+                        kayitli_yol = mf.read().strip()
+                except Exception:
+                    kayitli_yol = ""
+            if kayitli_yol != SCRIPT_DIR and os.path.exists(main_scpt):
                 subprocess.run(["osacompile", "-o", main_scpt] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                with open(marker, "w") as f:
-                    f.write("1")
+                with open(marker, "w", encoding="utf-8") as f:
+                    f.write(SCRIPT_DIR)
         except Exception:
             pass
         return  # uygulama zaten var: ikon işlemini tekrarlama (her açılışı yavaşlatır)
@@ -439,8 +450,8 @@ def masaustu_app_olustur():
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v5"), "w") as f:
-            f.write("1")
+        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v5"), "w", encoding="utf-8") as f:
+            f.write(SCRIPT_DIR)
     except Exception:
         pass
 
@@ -841,7 +852,7 @@ def canli_mac_veya_sonu_yap(mac_sonu=False):
     logo_hazirla(mac_verisi['teams']['away'].get('logo'), os.path.join(BASE_DIR, "depTakım.png"), "Deplasman")
     png_dogrula(["cerceve.png", "arkaPlan.png", "konu.png", "kafa.png", "VS.png", "evTakım.png", "depTakım.png"])
 
-    prog_adi = "Maç Sonu" if mac_sonu else "Canlı Maç Sohbeti"
+    prog_adi = "Maç Sonu" if mac_sonu else "Canlı Maç Sohbetleri"
     klasor = cikti_klasoru_al(prog_adi, tarih=tarih)
     if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
         video_adi = f"{'Mac_Sonu' if mac_sonu else 'Mac_Sohbeti'}_{nihai_saat.replace(':', '')}.mp4"
@@ -1575,7 +1586,10 @@ def takvim_senkronize_et():
                 if data.get("bos_mu"):
                     satirlar = []
                 else:
-                    raw_satirlar = [s for s in (data.get("satirlar") or []) if s and s.strip()]
+                    raw = data.get("satirlar") or []
+                    if isinstance(raw, dict):
+                        raw = list(raw.values())
+                    raw_satirlar = [s for s in raw if s and isinstance(s, str) and s.strip()]
                     satirlar = takvim_filtrele_ve_duzenle(raw_satirlar)
                 icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
                 with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
@@ -1835,6 +1849,13 @@ def yayin_iptal_et():
     )
     console.print(Panel(panel_icerik, title="[bold red]❌ Yayın İptal", expand=False))
 
+    # Terminal girdi tamponunda kalan karakterleri temizle
+    if sys.stdin.isatty() and termios is not None:
+        try:
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        except Exception:
+            pass
+
     girdi = Prompt.ask("[bold green]İptal edilecek yayın numarası[/bold green]", default="").strip()
     if not girdi or girdi.lower() in ("g", "geri", "q", "iptal", "exit"):
         console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
@@ -1857,14 +1878,24 @@ def yayin_iptal_et():
             if "❌" in satir:
                 console.print("\n[dim yellow]Bu yayın zaten iptal edilmiş olarak işaretli.[/dim yellow]\n")
                 return
-            satir_temiz = satir.replace(" ✅", "")
-            if " - " in satir_temiz:
-                parcalar = satir_temiz.split(" - ", 1)
-                guncel_satir = f"{parcalar[0]} ❌ - {parcalar[1]}"
-                iptal_edilen_ad = parcalar[0]
+            satir_temiz = satir.replace(" ✅", "").replace("✅", "")
+            bilgi_eki = ""
+            ana_kisim = satir_temiz
+            if " | Bilgi: " in satir_temiz:
+                ana_kisim, bilgi_kismi = satir_temiz.split(" | Bilgi: ", 1)
+                bilgi_eki = f" | Bilgi: {bilgi_kismi}"
+
+            parts = ana_kisim.rsplit(" - ", 2)
+            if len(parts) == 3:
+                guncel_satir = f"{parts[0]} ❌ - {parts[1]} - {parts[2]}{bilgi_eki}"
+                iptal_edilen_ad = parts[0]
+            elif " - " in ana_kisim:
+                parts = ana_kisim.rsplit(" - ", 1)
+                guncel_satir = f"{parts[0]} ❌ - {parts[1]}{bilgi_eki}"
+                iptal_edilen_ad = parts[0]
             else:
-                guncel_satir = f"{satir_temiz} ❌"
-                iptal_edilen_ad = satir_temiz
+                guncel_satir = f"{ana_kisim} ❌{bilgi_eki}"
+                iptal_edilen_ad = ana_kisim
             yeni_satirlar.append(guncel_satir)
         else:
             yeni_satirlar.append(satir)
@@ -1986,6 +2017,13 @@ def duyurulari_yapildi_isaretle():
     )
     console.print(Panel(panel_icerik, title="[bold yellow]✅ Duyuruları Tamamla", expand=False))
 
+    # Terminal girdi tamponunda kalan karakterleri temizle
+    if sys.stdin.isatty() and termios is not None:
+        try:
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        except Exception:
+            pass
+
     girdi = Prompt.ask("[bold green]Duyuru Numaraları[/bold green]", default="").strip()
     if not girdi or girdi.lower() in ("g", "geri", "q", "iptal", "exit"):
         console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
@@ -2007,17 +2045,27 @@ def duyurulari_yapildi_isaretle():
 
     for i, satir in enumerate(yayinlar, 1):
         if i in secilen_nolar:
-            # Yayının adının sonuna yeşil check sembolü ekle
-            if "✅" not in satir:
-                if " - " in satir:
-                    parcalar = satir.split(" - ", 1)
-                    guncel_satir = f"{parcalar[0]} ✅ - {parcalar[1]}"
+            # Yayının adının sonuna yeşil check sembolü ekle; varsa eski ❌ iptal işaretini temizle
+            satir_temiz = satir.replace(" ❌", "").replace("❌", "")
+            if "✅" not in satir_temiz:
+                bilgi_eki = ""
+                ana_kisim = satir_temiz
+                if " | Bilgi: " in satir_temiz:
+                    ana_kisim, bilgi_kismi = satir_temiz.split(" | Bilgi: ", 1)
+                    bilgi_eki = f" | Bilgi: {bilgi_kismi}"
+
+                parts = ana_kisim.rsplit(" - ", 2)
+                if len(parts) == 3:
+                    guncel_satir = f"{parts[0]} ✅ - {parts[1]} - {parts[2]}{bilgi_eki}"
+                elif " - " in ana_kisim:
+                    parts = ana_kisim.rsplit(" - ", 1)
+                    guncel_satir = f"{parts[0]} ✅ - {parts[1]}{bilgi_eki}"
                 else:
-                    guncel_satir = f"{satir} ✅"
+                    guncel_satir = f"{ana_kisim} ✅{bilgi_eki}"
                 yeni_satirlar.append(guncel_satir)
                 isaretlenenler.append(i)
             else:
-                yeni_satirlar.append(satir)
+                yeni_satirlar.append(satir_temiz)
                 isaretlenenler.append(i)
         else:
             yeni_satirlar.append(satir)
@@ -2073,7 +2121,10 @@ def chat_senkronize_et(aktif_kullanici_adi=None):
         if res_fb.status_code == 200:
             data = res_fb.json()
             if isinstance(data, dict) and "mesajlar" in data:
-                raw_mesajlar = data.get("mesajlar") or []
+                raw = data.get("mesajlar") or []
+                if isinstance(raw, dict):
+                    raw = list(raw.values())
+                raw_mesajlar = [m for m in raw if m and isinstance(m, str) and m.strip()]
                 mesajlar = chat_filtrele(raw_mesajlar)
                 yeni_icerik = "\n".join(mesajlar) + ("\n" if mesajlar else "")
 
@@ -2252,7 +2303,6 @@ def formatli_chat_satiri(satir):
 def chat_mesaj_gonder(kullanici_id, kullanici_adi):
     """Kullanıcının chat kutusuna mesaj göndermesini sağlar."""
     diger_adi = "Yiğit" if kullanici_id == "1" else "Ufuk"
-    chat_senkronize_et(kullanici_adi)
 
     console.print()
     mesajlar = chat_oku(kullanici_adi)
@@ -2269,6 +2319,13 @@ def chat_mesaj_gonder(kullanici_id, kullanici_adi):
         f"• Geri dönmek / vazgeçmek için 'g' yazın veya boş Enter'a basın.[/dim]"
     )
     console.print(Panel(panel_metni, title=f"[bold yellow]💬 Chat ({diger_adi} ile Sohbet)", expand=False))
+
+    # Terminal girdi tamponunda kalan karakterleri temizle
+    if sys.stdin.isatty() and termios is not None:
+        try:
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        except Exception:
+            pass
 
     mesaj = Prompt.ask(f"[bold green]{kullanici_adi}[/bold green]", default="").strip()
 
@@ -2563,13 +2620,13 @@ def ana_menu(kullanici_id, kullanici_adi):
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
                 bildirimleri_kontrol_et(kullanici_id)
-                bildirimleri_kontrol_et(kullanici_id)
 
 
 
 
 if __name__ == "__main__":
     masaustu_app_olustur()
+    guncelleme_kontrol()
     veri_temizligi_yap()
     yenilikleri_goster()
     k_id, k_ad = kullanici_belirle()

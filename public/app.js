@@ -27,15 +27,6 @@ let chatState = {
   isSending: false
 };
 
-// Başlangıç Mock / Fallback Verileri (İlk açılışta boş kalmaması için)
-const DEFAULT_YAYINLAR = [
-  "1-) Haftalık Program - Pazartesi - 20:00 | Bilgi: Canlı Yayın Planı ✅",
-  "2-) Canlı Maç (Fenerbahçe - Galatasaray) - Çarşamba - 20:30 | Bilgi: Derbi Özel Yayını",
-  "3-) Filtresiz Memleket Havası - Perşembe - 21:00 | Bilgi: Gündem ve Sohbet",
-  "4-) Albert ve Cem - Cuma - 21:30 | Bilgi: Yeni Bölüm",
-  "5-) FC 27 Kariyer - Pazar - 18:00 | Bilgi: 12. Bölüm"
-];
-
 // DOM Yüklendiğinde Başlat
 document.addEventListener("DOMContentLoaded", () => {
   initUser();
@@ -140,9 +131,14 @@ function parseYayinSatiri(satir, index) {
 
   if (temizSatir.includes(" - ")) {
     const segmentler = temizSatir.split(" - ");
-    yayinAdi = segmentler[0].trim();
-    if (segmentler.length > 1) gun = segmentler[1].trim();
-    if (segmentler.length > 2) saat = segmentler[2].trim();
+    if (segmentler.length >= 3) {
+      saat = segmentler[segmentler.length - 1].trim();
+      gun = segmentler[segmentler.length - 2].trim();
+      yayinAdi = segmentler.slice(0, -2).join(" - ").trim();
+    } else if (segmentler.length === 2) {
+      gun = segmentler[1].trim();
+      yayinAdi = segmentler[0].trim();
+    }
   }
 
   // Kanal Belirleme
@@ -322,31 +318,51 @@ function toggleYayinDurumu(index, action) {
   if (index < 0 || index >= state.yayinlar.length) return;
   let satir = state.yayinlar[index];
 
+  // Ek bilgi kısmını ayır
+  let bilgiEki = "";
+  let anaSatir = satir;
+  if (satir.includes(" | Bilgi: ")) {
+    const parts = satir.split(" | Bilgi: ");
+    anaSatir = parts[0];
+    bilgiEki = ` | Bilgi: ${parts.slice(1).join(" | Bilgi: ")}`;
+  }
+
+  // Mevcut durum simgelerini temizle
+  let temizAna = anaSatir.replace(/ ✅/g, "").replace(/✅/g, "").replace(/ ❌/g, "").replace(/❌/g, "").trim();
+
   if (action === "done") {
     if (satir.includes("✅")) {
-      satir = satir.replace(" ✅", "");
+      satir = `${temizAna}${bilgiEki}`;
       showToast("Duyuru işareti kaldırıldı.", "info");
     } else {
-      satir = satir.replace(" ❌", "");
-      if (satir.includes(" - ")) {
-        const parcalar = satir.split(" - ", 2);
-        satir = `${parcalar[0]} ✅ - ${satir.substring(parcalar[0].length + 3)}`;
+      const parts = temizAna.split(" - ");
+      if (parts.length >= 3) {
+        const saat = parts[parts.length - 1].trim();
+        const gun = parts[parts.length - 2].trim();
+        const yayinAdi = parts.slice(0, -2).join(" - ").trim();
+        satir = `${yayinAdi} ✅ - ${gun} - ${saat}${bilgiEki}`;
+      } else if (parts.length === 2) {
+        satir = `${parts[0].trim()} ✅ - ${parts[1].trim()}${bilgiEki}`;
       } else {
-        satir += " ✅";
+        satir = `${temizAna} ✅${bilgiEki}`;
       }
       showToast("✓ Yayın duyurusu tamamlandı olarak işaretlendi!", "success");
     }
   } else if (action === "cancel") {
     if (satir.includes("❌")) {
-      satir = satir.replace(" ❌", "");
+      satir = `${temizAna}${bilgiEki}`;
       showToast("İptal işareti kaldırıldı.", "info");
     } else {
-      satir = satir.replace(" ✅", "");
-      if (satir.includes(" - ")) {
-        const parcalar = satir.split(" - ", 2);
-        satir = `${parcalar[0]} ❌ - ${satir.substring(parcalar[0].length + 3)}`;
+      const parts = temizAna.split(" - ");
+      if (parts.length >= 3) {
+        const saat = parts[parts.length - 1].trim();
+        const gun = parts[parts.length - 2].trim();
+        const yayinAdi = parts.slice(0, -2).join(" - ").trim();
+        satir = `${yayinAdi} ❌ - ${gun} - ${saat}${bilgiEki}`;
+      } else if (parts.length === 2) {
+        satir = `${parts[0].trim()} ❌ - ${parts[1].trim()}${bilgiEki}`;
       } else {
-        satir += " ❌";
+        satir = `${temizAna} ❌${bilgiEki}`;
       }
       showToast("❌ Yayın iptal edildi olarak işaretlendi.", "warning");
     }
@@ -445,9 +461,15 @@ async function senkronizeEtUzak(bildirimVer = true) {
         let gelenSatirlar = [];
         if (data.bos_mu) {
           gelenSatirlar = [];
-        } else if (Array.isArray(data.satirlar)) {
-          // Yayın takviminde sadece gerçek yayınlar kalır, Gemini AI maçları normal takvim gridine aittir
-          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") || s.includes("[Gemini AI]")));
+        } else {
+          let rawList = data.satirlar;
+          if (rawList && typeof rawList === "object" && !Array.isArray(rawList)) {
+            rawList = Object.values(rawList);
+          }
+          if (Array.isArray(rawList)) {
+            // Yayın takviminde sadece gerçek yayınlar kalır, Gemini AI maçları normal takvim gridine aittir
+            gelenSatirlar = rawList.filter(s => s && typeof s === "string" && s.trim() && !(s.includes("Gemini AI") || s.includes("[Gemini AI]")));
+          }
         }
 
         // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
@@ -944,14 +966,15 @@ function broadcastMatchesDay(item, d, monthIdx, year, dayName, isToday, todayDat
   }
 
   // 5. Eğer sadece gün adı yazılmışsa (örn: "Çarşamba"):
-  // Kullanıcı "bu çarşamba" kastettiği için, içinde bulunulan haftadaki o güne eşle!
+  // Kullanıcı yaklaşan günü kastettiği için, önümüzdeki o güne eşle!
   if (g.includes(dayNameLower)) {
     const now = new Date();
     const currentDayOfWeek = (now.getDay() + 6) % 7; // 0 = Pazartesi
     const targetDayOfWeek = GUN_ADLARI.findIndex(gn => gn.toLowerCase() === dayNameLower);
     
     if (targetDayOfWeek !== -1) {
-      const diffDays = targetDayOfWeek - currentDayOfWeek;
+      let diffDays = targetDayOfWeek - currentDayOfWeek;
+      if (diffDays < 0) diffDays += 7; // Geçmiş güne değil, önümüzdeki o güne eşle
       const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffDays);
       return (targetDate.getDate() === d && targetDate.getMonth() === monthIdx && targetDate.getFullYear() === year);
     }
@@ -1220,9 +1243,14 @@ async function fetchChatData() {
     const res = await fetch(`${FIREBASE_DB_URL}/chat.json?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
-      let rawList = [];
-      if (data && Array.isArray(data.mesajlar)) {
-        rawList = data.mesajlar.filter(m => m && m.trim() && !m.includes("Gemini AI"));
+      let rawList = data ? data.mesajlar : [];
+      if (rawList && typeof rawList === "object" && !Array.isArray(rawList)) {
+        rawList = Object.values(rawList);
+      }
+      if (Array.isArray(rawList)) {
+        rawList = rawList.filter(m => m && typeof m === "string" && m.trim() && !m.includes("Gemini AI"));
+      } else {
+        rawList = [];
       }
       const rawStr = JSON.stringify(rawList);
       if (rawStr !== chatState.lastRaw) {

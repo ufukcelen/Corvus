@@ -8,7 +8,17 @@
   <meta name="description"
     content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=4.7">
+  <link rel="stylesheet" href="style.css?v=4.8">
+  <script>
+    (function() {
+      try {
+        var u = localStorage.getItem("tellal_web_user");
+        if (u && u !== "3. Kullanıcı (Editör)") {
+          window.__initialUser = u;
+        }
+      } catch(e) {}
+    })();
+  </script>
 </head>
 
 <body>
@@ -275,7 +285,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=4.7"></script>
+  <script src="app.js?v=4.8"></script>
 </body>
 
 </html>
