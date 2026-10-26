@@ -12,6 +12,7 @@ const savedUser = localStorage.getItem(STORAGE_KEY_USER);
 let state = {
   currentUser: (savedUser && savedUser !== "3. Kullanıcı (Editör)") ? savedUser : "Cem Yıldırım",
   yayinlar: [],
+  geminiMatches: [],
   activeFilter: "all",
   searchQuery: "",
   isSyncing: false,
@@ -75,15 +76,32 @@ async function initCalendarData() {
   if (localData) {
     try {
       state.yayinlar = JSON.parse(localData);
+      // Yayın takviminde kalmış olabilecek eski Gemini maç satırlarını ayıkla
+      state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") && y.includes("Canlı Maç Sohbeti")));
     } catch (e) {
       state.yayinlar = [];
     }
   }
+
+  // Gemini AI Maçlarını localStorage'dan veya varsayılan fikstürden yükle (Normal Takvim gridi için)
+  const localMatches = localStorage.getItem("tellal_gemini_matches");
+  if (localMatches) {
+    try {
+      state.geminiMatches = JSON.parse(localMatches);
+    } catch (e) {
+      state.geminiMatches = [...GEMINI_AI_FIXTURES];
+    }
+  } else {
+    state.geminiMatches = [...GEMINI_AI_FIXTURES];
+  }
+
   renderCalendar();
   updateStats();
+  renderMonthCalendar();
 
   // Doğrudan Firebase Bulut Veritabanından en güncel veriyi çek ve eşitle
   await senkronizeEtUzak(false);
+  await senkronizeGeminiMatches();
   checkGeminiAiAutoRun();
 }
 
@@ -428,7 +446,8 @@ async function senkronizeEtUzak(bildirimVer = true) {
         if (data.bos_mu) {
           gelenSatirlar = [];
         } else if (Array.isArray(data.satirlar)) {
-          gelenSatirlar = data.satirlar.filter(s => s && s.trim());
+          // Yayın takviminde sadece gerçek yayınlar kalır, Gemini AI maçları normal takvim gridine aittir
+          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") && s.includes("Canlı Maç Sohbeti")));
         }
 
         // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
@@ -459,6 +478,11 @@ function startNtfyPolling() {
   setInterval(() => {
     senkronizeEtUzak(false);
   }, 6000);
+
+  // Gemini AI maç fikstürünü 20 saniyede bir sessizce kontrol et
+  setInterval(() => {
+    senkronizeGeminiMatches();
+  }, 20000);
 }
 
 // 9. Event Listener'lar ve Modal Kontrolleri
@@ -698,7 +722,10 @@ function renderMonthCalendar() {
   const firstDayIndex = (firstDay.getDay() + 6) % 7; // 0 = Pazartesi, 6 = Pazar
   const daysInMonth = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
   const prevMonthDays = new Date(state.calendarYear, state.calendarMonth, 0).getDate();
+  const prevMonthIdx = (state.calendarMonth + 11) % 12;
+  const prevMonthYear = state.calendarMonth === 0 ? state.calendarYear - 1 : state.calendarYear;
   const nextMonthIdx = (state.calendarMonth + 1) % 12;
+  const nextMonthYear = state.calendarMonth === 11 ? state.calendarYear + 1 : state.calendarYear;
 
   const parsedItems = state.yayinlar.map((s, i) => parseYayinSatiri(s, i));
 
@@ -707,12 +734,28 @@ function renderMonthCalendar() {
   // 1. Önceki aydan kalan günler (Sol boşluklar)
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const prevDayNum = prevMonthDays - i;
+    const prevMatches = (state.geminiMatches || []).filter(m => m.gun === prevDayNum && m.ay === prevMonthIdx && m.yil === prevMonthYear);
+    let prevEventsHtml = "";
+    if (prevMatches.length > 0) {
+      prevEventsHtml = prevMatches.map(m => {
+        const tipClass = m.tip || "lig";
+        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+        return `
+          <div class="cal-event-pill gemini-match ${tipClass}" 
+               title="${escapeHtml(m.aciklama)}"
+               onclick="event.stopPropagation(); state.calendarMonth = ${prevMonthIdx}; state.calendarYear = ${prevMonthYear}; renderMonthCalendar();">
+            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
+          </div>
+        `;
+      }).join("");
+    }
+
     html += `
-      <div class="cal-day-cell other-month">
+      <div class="cal-day-cell other-month" onclick="state.calendarMonth = ${prevMonthIdx}; state.calendarYear = ${prevMonthYear}; renderMonthCalendar();">
         <div class="cal-day-top">
           <span class="cal-day-number">${prevDayNum}</span>
         </div>
-        <div class="cal-cell-events"></div>
+        <div class="cal-cell-events">${prevEventsHtml}</div>
       </div>
     `;
   }
@@ -734,27 +777,48 @@ function renderMonthCalendar() {
       dayTopHtml = `<span class="cal-day-number">${d}</span>`;
     }
 
-    // Bu güne denk gelen yayınları bul (Sadece belirtilen güne ekleme mantığı)
+    // A) Bu güne denk gelen GERÇEK YouTube yayınları (Yayın Takvimi öğeleri)
     const matchingBroadcasts = parsedItems.filter(item => {
+      if (item.bilgi.includes("Gemini AI") || item.yayinAdi.includes("Canlı Maç Sohbeti")) return false;
       return broadcastMatchesDay(item, d, state.calendarMonth, state.calendarYear, dayName, isToday, todayDate);
     });
 
+    // B) Bu güne denk gelen GEMINI AI maç eventleri (Kullanıcının istediği normal takvim hücre eventleri)
+    const matchingMatches = (state.geminiMatches || []).filter(m => {
+      return m.gun === d && m.ay === state.calendarMonth && m.yil === state.calendarYear;
+    });
+
     let eventsHtml = "";
+
+    // 1. Gerçek yayın pilleri
     if (matchingBroadcasts.length > 0) {
-      eventsHtml = matchingBroadcasts.map(b => {
+      eventsHtml += matchingBroadcasts.map(b => {
         const chClass = b.kanal === "Uykusuz Tosba" ? "tosba" : "mocas";
         let statusClass = "";
         if (b.isDone) statusClass = "done";
         else if (b.isCanceled) statusClass = "canceled";
 
-        const isGeminiMatch = b.bilgi.includes("Gemini AI") || b.bilgi.includes("⚽");
-        const extraClass = isGeminiMatch ? "gemini-match" : chClass;
-
         return `
-          <div class="cal-event-pill ${extraClass} ${statusClass}" 
+          <div class="cal-event-pill ${chClass} ${statusClass}" 
                title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)})"
                onclick="event.stopPropagation(); filterByCalendarBroadcast('${escapeHtml(b.yayinAdi)}')">
-            ${isGeminiMatch ? "⚽ " : ""}${escapeHtml(b.saat)} ${escapeHtml(b.yayinAdi)}
+            ${escapeHtml(b.saat)} ${escapeHtml(b.yayinAdi)}
+          </div>
+        `;
+      }).join("");
+    }
+
+    // 2. Gemini AI futbol maç pilleri (Özel futbol/derbi/milli takım rozeti)
+    if (matchingMatches.length > 0) {
+      eventsHtml += matchingMatches.map(m => {
+        const tipClass = m.tip || "lig";
+        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+
+        return `
+          <div class="cal-event-pill gemini-match ${tipClass}" 
+               title="${escapeHtml(m.aciklama)} (Tıkla: Bu maç için canlı yayın ekle)"
+               onclick="event.stopPropagation(); geminiMacaYayinEkle('${escapeHtml(m.takimlar)}', '${escapeHtml(m.saat)}', ${d}, ${state.calendarMonth})">
+            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
           </div>
         `;
       }).join("");
@@ -772,7 +836,7 @@ function renderMonthCalendar() {
     `;
   }
 
-  // 3. Gelecek aydan kalan günler
+  // 3. Gelecek aydan kalan günler (Sağ boşluklar)
   const totalCells = firstDayIndex + daysInMonth;
   const remainingCells = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
   for (let n = 1; n <= remainingCells; n++) {
@@ -783,12 +847,28 @@ function renderMonthCalendar() {
       nextDayLabel = `<span class="cal-day-number">${n}</span>`;
     }
 
+    const nextMatches = (state.geminiMatches || []).filter(m => m.gun === n && m.ay === nextMonthIdx && m.yil === nextMonthYear);
+    let nextEventsHtml = "";
+    if (nextMatches.length > 0) {
+      nextEventsHtml = nextMatches.map(m => {
+        const tipClass = m.tip || "lig";
+        const icon = tipClass === "milli" ? "🇹🇷" : "⚽";
+        return `
+          <div class="cal-event-pill gemini-match ${tipClass}" 
+               title="${escapeHtml(m.aciklama)}"
+               onclick="event.stopPropagation(); state.calendarMonth = ${nextMonthIdx}; state.calendarYear = ${nextMonthYear}; renderMonthCalendar();">
+            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
+          </div>
+        `;
+      }).join("");
+    }
+
     html += `
-      <div class="cal-day-cell other-month">
+      <div class="cal-day-cell other-month" onclick="state.calendarMonth = ${nextMonthIdx}; state.calendarYear = ${nextMonthYear}; renderMonthCalendar();">
         <div class="cal-day-top">
           ${nextDayLabel}
         </div>
-        <div class="cal-cell-events"></div>
+        <div class="cal-cell-events">${nextEventsHtml}</div>
       </div>
     `;
   }
@@ -877,107 +957,159 @@ function broadcastMatchesDay(item, d, monthIdx, year, dayName, isToday, todayDat
 }
 
 // =====================================================================
-// GEMINI AI MAÇ TAKİP VE TAKVİM ASİSTANI
+// GEMINI AI MAÇ TAKİP VE TAKVİM ASİSTANI (NORMAL TAKVİM GRİDİ İÇİN)
 // =====================================================================
 const GEMINI_AI_FIXTURES = [
   {
+    id: "derbi-gs-fb",
     takimlar: "Galatasaray - Fenerbahçe",
-    kategori: "Dev Derbi",
-    tarihText: "26 Ekim (Pazartesi)",
+    kisaAd: "GS - FB (Dev Derbi)",
+    lig: "Süper Lig",
+    tip: "derbi",
+    gun: 26,
+    ay: 9, // Ekim (0-indexed: 9 = Ekim)
+    yil: 2026,
     saat: "20:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Galatasaray vs Fenerbahçe Derbi Özel Yayını ⚽ (Gemini AI)"
+    aciklama: "⚽ 20:00 Galatasaray vs Fenerbahçe Dev Derbi"
   },
   {
+    id: "bjk-basaksehir",
     takimlar: "Beşiktaş - Başakşehir",
-    kategori: "Süper Lig",
-    tarihText: "26 Ekim (Pazartesi)",
+    kisaAd: "BJK - Başakşehir",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 26,
+    ay: 9,
+    yil: 2026,
     saat: "20:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Beşiktaş vs Başakşehir Canlı Maç Sohbeti ⚽ (Gemini AI)"
+    aciklama: "⚽ 20:00 Beşiktaş vs Başakşehir"
   },
   {
+    id: "rize-ts",
     takimlar: "Çaykur Rizespor - Trabzonspor",
-    kategori: "Süper Lig",
-    tarihText: "26 Ekim (Pazartesi)",
+    kisaAd: "Rizespor - TS",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 26,
+    ay: 9,
+    yil: 2026,
     saat: "20:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Rizespor vs Trabzonspor Canlı Maç Sohbeti ⚽ (Gemini AI)"
+    aciklama: "⚽ 20:00 Çaykur Rizespor vs Trabzonspor"
   },
   {
+    id: "konya-gs",
     takimlar: "Konyaspor - Galatasaray",
-    kategori: "Süper Lig",
-    tarihText: "30 Ekim (Cuma)",
+    kisaAd: "Konya - GS",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 30,
+    ay: 9,
+    yil: 2026,
     saat: "20:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Konyaspor vs Galatasaray Maç Yayını ⚽ (Gemini AI)"
+    aciklama: "⚽ 20:00 Konyaspor vs Galatasaray"
   },
   {
+    id: "fb-goztepe",
     takimlar: "Fenerbahçe - Göztepe",
-    kategori: "Süper Lig",
-    tarihText: "31 Ekim (Cumartesi)",
+    kisaAd: "FB - Göztepe",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 31,
+    ay: 9,
+    yil: 2026,
     saat: "19:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Fenerbahçe vs Göztepe Maç Yayını ⚽ (Gemini AI)"
+    aciklama: "⚽ 19:00 Fenerbahçe vs Göztepe"
   },
   {
+    id: "ts-gaziantep",
     takimlar: "Trabzonspor - Gaziantep FK",
-    kategori: "Süper Lig",
-    tarihText: "1 Kasım (Pazar)",
+    kisaAd: "TS - Gaziantep",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 1,
+    ay: 10, // Kasım (0-indexed: 10 = Kasım)
+    yil: 2026,
     saat: "16:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Trabzonspor vs Gaziantep FK Canlı Maç Sohbeti ⚽ (Gemini AI)"
+    aciklama: "⚽ 16:00 Trabzonspor vs Gaziantep FK"
   },
   {
+    id: "kasimpasa-bjk",
     takimlar: "Kasımpaşa - Beşiktaş",
-    kategori: "Süper Lig",
-    tarihText: "1 Kasım (Pazar)",
+    kisaAd: "Kasımpaşa - BJK",
+    lig: "Süper Lig",
+    tip: "lig",
+    gun: 1,
+    ay: 10,
+    yil: 2026,
     saat: "19:00",
-    kanal: "Uykusuz Tosba",
-    bilgi: "Kasımpaşa vs Beşiktaş Canlı Maç Sohbeti ⚽ (Gemini AI)"
+    aciklama: "⚽ 19:00 Kasımpaşa vs Beşiktaş"
   },
   {
+    id: "milli-tur-wal",
     takimlar: "Türkiye - Galler",
-    kategori: "UEFA Uluslar Ligi",
-    tarihText: "16 Kasım (Pazartesi)",
+    kisaAd: "Türkiye - Galler 🇹🇷",
+    lig: "UEFA Uluslar Ligi",
+    tip: "milli",
+    gun: 16,
+    ay: 10,
+    yil: 2026,
     saat: "20:45",
-    kanal: "Uykusuz Tosba",
-    bilgi: "A Milli Takım Maç Yayını: Türkiye vs Galler 🇹🇷⚽ (Gemini AI)"
+    aciklama: "🇹🇷 20:45 A Milli Takım: Türkiye vs Galler"
   }
 ];
 
-async function runGeminiAiMatchScanner(isManual = false) {
-  let eklenenSayisi = 0;
-  const eklenenMaclar = [];
-
-  for (const m of GEMINI_AI_FIXTURES) {
-    const zatenVar = state.yayinlar.some(y => {
-      const yLower = y.toLowerCase();
-      return yLower.includes(m.takimlar.toLowerCase()) || 
-             yLower.includes(m.bilgi.toLowerCase());
-    });
-
-    if (!zatenVar) {
-      const siradakiNo = state.yayinlar.length + 1;
-      const yeniSatir = `${siradakiNo}-) Canlı Maç Sohbeti - ${m.tarihText} - ${m.saat} | Bilgi: ${m.bilgi}`;
-      state.yayinlar.push(yeniSatir);
-      eklenenSayisi++;
-      eklenenMaclar.push(m.takimlar);
+async function senkronizeGeminiMatches() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/gemini_matches.json?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.matches) && data.matches.length > 0) {
+        state.geminiMatches = data.matches;
+        localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
+        renderMonthCalendar();
+      }
     }
+  } catch (err) {
+    console.warn("Gemini maç senkronizasyon:", err);
   }
+}
 
-  localStorage.setItem("gemini_ai_initial_run", "true");
+async function runGeminiAiMatchScanner(isManual = false) {
+  // 1. Gemini AI maçlarını state'e yükle (Yayın takvimine değil, doğrudan normal takvim gridine eklenir)
+  state.geminiMatches = [...GEMINI_AI_FIXTURES];
+  localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
 
-  if (eklenenSayisi > 0) {
+  // 2. Eğer daha önceden state.yayinlar'a yanlışlıkla girmiş maç satırları varsa yayın takviminden tamamen sil
+  const oncekiUzunluk = state.yayinlar.length;
+  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") && y.includes("Canlı Maç Sohbeti")));
+  if (state.yayinlar.length !== oncekiUzunluk) {
     kaydetYerel();
     renderCalendar();
     updateStats();
+    await yayinlariBulutaGonder("Yayın takviminden maçlar temizlendi (sadece normal takvim hücresine işlendi).");
+  }
 
-    // Firebase'e yaz
-    await yayinlariBulutaGonder(`Gemini AI: 4 Büyükler & Milli Takım maç fikstürü takvime eklendi (${eklenenSayisi} maç).`);
+  // 3. Normal takvimi yeniden render et (maçlar takvim hücrelerinde parlayacak)
+  renderMonthCalendar();
 
-    // Canlı chate Gemini AI mesajı
-    const chatMsg = `Gemini AI: ⚽ Türkiye Milli Takımı ve 4 Büyüklerin maçları tarandı! (${eklenenMaclar.join(", ")}) takvime başarıyla eklendi.`;
+  // 4. Firebase RTDB gemini_matches.json tablosuna kaydet
+  try {
+    await fetch(`${FIREBASE_DB_URL}/gemini_matches.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        matches: state.geminiMatches,
+        son_guncelleme: Math.floor(Date.now() / 1000),
+        kaynak: "Gemini AI"
+      })
+    });
+  } catch (e) {
+    console.warn("Gemini matches bulut kaydı hatası:", e);
+  }
+
+  // 5. Canlı chate bilgilendirme mesajı (eğer manuel tıklandıysa)
+  if (isManual) {
+    const chatMsg = `Gemini AI: ⚽ Milli Takım, FB-GS derbisi, BJK ve TS maçları tarandı ve normal takvim günlerine event olarak eklendi!`;
     try {
       chatState.mesajlar.push(chatMsg);
       renderChatMessages();
@@ -994,10 +1126,66 @@ async function runGeminiAiMatchScanner(isManual = false) {
       console.warn("Gemini AI chat log hatası:", e);
     }
 
-    showToast(`✨ Gemini AI: ${eklenenSayisi} maç tespit edildi ve takvime otomatik işlendi! ⚽`, "success");
-  } else if (isManual) {
-    showToast("✨ Gemini AI: Maç fikstürü zaten güncel! Yeni eklenecek maç bulunamadı.", "info");
+    showToast("✨ Gemini AI: Maçlar yayın takvimine değil, doğrudan normal takvim gridine event olarak işlendi! ⚽", "success");
   }
+}
+
+function geminiMacaYayinEkle(takimlar, saat, gun, ayIdx) {
+  const ayAdi = AY_ISIMLERI[ayIdx] || "";
+  const dayDate = new Date(state.calendarYear, ayIdx, gun);
+  const dayName = GUN_ADLARI[(dayDate.getDay() + 6) % 7] || "";
+  const targetGunVal = `${gun} ${ayAdi} (${dayName})`;
+
+  const kanalSelect = document.getElementById("inputKanal");
+  if (kanalSelect) kanalSelect.value = "Uykusuz Tosba";
+
+  const selectProgram = document.getElementById("inputProgramSelect");
+  const customProgram = document.getElementById("inputCustomProgram");
+  const customGroup = document.getElementById("customProgramGroup");
+
+  if (selectProgram) {
+    let matched = false;
+    for (let opt of selectProgram.options) {
+      if (opt.value.includes("Maç") || opt.value.includes("Canlı Maç")) {
+        selectProgram.value = opt.value;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      selectProgram.value = "__CUSTOM__";
+      if (customGroup) customGroup.style.display = "block";
+      if (customProgram) customProgram.value = `Canlı Maç: ${takimlar}`;
+    }
+  }
+
+  const gunSelect = document.getElementById("inputGun");
+  if (gunSelect) {
+    let found = false;
+    for (let opt of gunSelect.options) {
+      if (opt.value === targetGunVal || opt.value.includes(`${gun} ${ayAdi}`)) {
+        gunSelect.value = opt.value;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      const newOpt = document.createElement("option");
+      newOpt.value = targetGunVal;
+      newOpt.textContent = targetGunVal;
+      gunSelect.insertBefore(newOpt, gunSelect.firstChild);
+      gunSelect.value = targetGunVal;
+    }
+  }
+
+  const saatInput = document.getElementById("inputSaat");
+  if (saatInput) saatInput.value = saat;
+
+  const bilgiInput = document.getElementById("inputBilgi");
+  if (bilgiInput) bilgiInput.value = `${takimlar} Canlı Yayın ⚽`;
+
+  openAddModal();
+  showToast(`⚽ "${takimlar}" seçildi. Bu maç için yayın takvimine ekleme yapabilirsiniz.`, "info");
 }
 
 function checkGeminiAiAutoRun() {
@@ -1006,7 +1194,7 @@ function checkGeminiAiAutoRun() {
   const todayStr = now.toISOString().split("T")[0];
   const lastSundayRun = localStorage.getItem("gemini_ai_last_sunday");
 
-  // Otomatik olarak haftalık maç fikstürünü tara ve eksik maçları takvime yerleştir
+  // Normal takvim maçlarını başlat/tara
   runGeminiAiMatchScanner(false);
 
   if (isSunday && lastSundayRun !== todayStr) {
@@ -1088,7 +1276,9 @@ function renderChatMessages() {
     const sLower = sender.toLowerCase();
     const isOwn = (sender === state.currentUser || sLower.includes("cem"));
 
-    if (sLower.includes("ufuk")) {
+    if (sLower.includes("gemini")) {
+      senderClass = "chat-sender-gemini";
+    } else if (sLower.includes("ufuk")) {
       senderClass = "chat-sender-ufuk";
     } else if (sLower.includes("yiğit") || sLower.includes("yigit")) {
       senderClass = "chat-sender-yigit";

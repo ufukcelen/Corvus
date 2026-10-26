@@ -1123,9 +1123,40 @@ body {
 }
 
 .cal-event-pill.gemini-match {
-  background: rgba(139, 92, 246, 0.22);
-  color: #e9d5ff;
-  border-left: 3px solid #c084fc;
+  background: rgba(16, 185, 129, 0.16);
+  color: #6ee7b7;
+  border-left: 3px solid #10b981;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+
+.cal-event-pill.gemini-match:hover {
+  background: rgba(16, 185, 129, 0.28);
+  color: #a7f3d0;
+  transform: translateX(2px);
+}
+
+.cal-event-pill.gemini-match.derbi {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fde68a;
+  border-left: 3px solid #f59e0b;
+}
+
+.cal-event-pill.gemini-match.derbi:hover {
+  background: rgba(245, 158, 11, 0.35);
+  color: #fef08a;
+}
+
+.cal-event-pill.gemini-match.milli {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fecaca;
+  border-left: 3px solid #ef4444;
+}
+
+.cal-event-pill.gemini-match.milli:hover {
+  background: rgba(239, 68, 68, 0.35);
+  color: #fee2e2;
 }
 
 /* =====================================================================
@@ -1212,6 +1243,23 @@ body {
 .chat-sender-ufuk {
   color: var(--primary);
   font-weight: 700;
+}
+
+.chat-sender-gemini {
+  color: #c084fc;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-sender-gemini::after {
+  content: 'AI Bot ⚽';
+  font-size: 0.65rem;
+  background: rgba(168, 85, 247, 0.25);
+  color: #e9d5ff;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
 }
 
 .chat-sender-yigit {
