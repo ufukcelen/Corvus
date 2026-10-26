@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tellal Cloud — YouTube Yayın Takvimi & Planlama Portalı</title>
+  <meta name="description" content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Arka Plan Işık Efektleri -->
+  <div class="bg-mesh">
+    <div class="mesh-circle-1"></div>
+    <div class="mesh-circle-2"></div>
+    <div class="mesh-circle-3"></div>
+  </div>
+
+  <div class="app-container">
+    
+    <!-- Üst Başlık (Navbar) -->
+    <header class="header-nav">
+      <div class="brand-section">
+        <div class="brand-icon">📡</div>
+        <div class="brand-title">
+          <h1>Tellal Cloud <span class="brand-badge">Hub</span></h1>
+          <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
+            YouTube Canlı Yayın & Takvim Otomasyonu
+          </p>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <!-- Canlı Saat & Durum -->
+        <div class="user-badge" id="btnClockBadge">
+          <span class="pulse-indicator"></span>
+          <span id="liveClock">--:--:--</span>
+        </div>
+
+        <!-- Aktif Kullanıcı Rozeti -->
+        <div class="user-badge" id="btnSwitchUser" onclick="switchUser()" title="Kullanıcı ismini değiştirmek için tıklayın">
+          <span>👤</span>
+          <span id="activeUserName">3. Kullanıcı (Editör)</span>
+          <span style="font-size: 0.7rem; opacity: 0.6;">✎</span>
+        </div>
+
+        <!-- Bulut Senkronizasyon Butonu -->
+        <button id="manualSyncBtn" class="btn btn-secondary btn-sm" title="Takvimi Bulutla Eşitle">
+          <span class="sync-icon">🔄</span>
+          <span>Yenile</span>
+        </button>
+
+        <!-- Yeni Yayın Ekle Butonu -->
+        <button id="openAddModalBtn" class="btn btn-primary">
+          <span>+</span>
+          <span>Yayın Ekle</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- İstatistik Kartları Grid -->
+    <section class="stats-grid" aria-label="Yayın İstatistikleri">
+      <div class="stat-card">
+        <div class="stat-icon cyan">📅</div>
+        <div class="stat-info">
+          <h4>Toplam Yayın</h4>
+          <div class="stat-value" id="statTotalBroadcasts">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon amber">⏳</div>
+        <div class="stat-info">
+          <h4>Bekleyen / Aktif</h4>
+          <div class="stat-value" id="statActiveBroadcasts">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon green">✅</div>
+        <div class="stat-info">
+          <h4>Duyurusu Yapılan</h4>
+          <div class="stat-value" id="statDoneBroadcasts">0</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon purple">❌</div>
+        <div class="stat-info">
+          <h4>İptal Edilen</h4>
+          <div class="stat-value" id="statCanceledBroadcasts">0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Kontrol ve Filtreleme Çubuğu -->
+    <section class="controls-bar">
+      <!-- Filtre Butonları -->
+      <div class="filter-group" role="tablist">
+        <button class="filter-btn active" data-filter="all">Tüm Yayınlar</button>
+        <button class="filter-btn" data-filter="tosba">Uykusuz Tosba</button>
+        <button class="filter-btn" data-filter="mocas">Radio Mocas</button>
+        <button class="filter-btn" data-filter="done">Yapılanlar ✅</button>
+        <button class="filter-btn" data-filter="canceled">İptaller ❌</button>
+      </div>
+
+      <!-- Arama Kutusu -->
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Yayın adı, gün veya not ara..." autocomplete="off">
+      </div>
+    </section>
+
+    <!-- Gelecek Yayınlar Listesi Bölümü -->
+    <main>
+      <div class="section-header">
+        <h2>
+          <span>📅</span>
+          <span>Planlanan Gelecek Yayınlar</span>
+        </h2>
+        <span class="section-badge" id="broadcastCountBadge">0 Yayın</span>
+      </div>
+
+      <div class="broadcast-list" id="broadcastListContainer">
+        <!-- JS ile dinamik olarak doldurulacaktır -->
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Yeni Yayın Ekleme Modalı -->
+  <div class="modal-overlay" id="addBroadcastModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalTitle">
+          <span>➕</span>
+          <span>Takvime Yeni Yayın Ekle</span>
+        </h3>
+        <button class="close-btn" id="closeModalBtn" aria-label="Kapat">&times;</button>
+      </div>
+
+      <form id="addBroadcastForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="inputProgram">Yayın / Program Adı</label>
+            <input type="text" id="inputProgram" placeholder="Örn: Canlı Maç (FB - GS), Haftalık Program, Albert ve Cem" required>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="inputKanal">Kanal</label>
+              <select id="inputKanal">
+                <option value="Uykusuz Tosba">Uykusuz Tosba</option>
+                <option value="Radio Mocas">Radio Mocas</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="inputGun">Yayın Günü</label>
+              <select id="inputGun">
+                <!-- JS ile güncel günler yüklenecek -->
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="inputSaat">Yayın Saati</label>
+              <input type="text" id="inputSaat" placeholder="20:00" value="20:00" pattern="^([01]\d|2[0-3]):[0-5]\d$" title="SS:DD formatında olmalıdır (Örn: 20:30)" required>
+            </div>
+
+            <div class="form-group">
+              <label for="inputBilgi">Ek Not / Bilgi (İsteğe Bağlı)</label>
+              <input type="text" id="inputBilgi" placeholder="Örn: Derbi Özel Yayını, Canlı">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelModalBtn">İptal</button>
+          <button type="submit" class="btn btn-primary" id="saveBroadcastBtn">
+            <span>✓</span>
+            <span>Takvime Kaydet & Eşitle</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Bildirim Kapsayıcısı -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="app.js"></script>
+</body>
+</html>
