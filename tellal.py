@@ -1651,6 +1651,82 @@ def takvim_temizle():
         console.print("[dim]İşlem iptal edildi.[/dim]")
 
 
+def duyurulari_yapildi_isaretle():
+    """Kullanıcı 2 (Yiğit) için yapılan/planlanan duyuruları işaretler ve takvime yeşil check sembolü ekler."""
+    yayinlar = takvim_oku()
+    if not yayinlar:
+        console.print("\n[dim yellow]Takvimde henüz planlanmış bir yayın bulunmuyor.[/dim yellow]\n")
+        return
+
+    console.print()
+    yayin_metinleri = []
+    for s in yayinlar:
+        if " | Bilgi: " in s:
+            ana, bilgi = s.split(" | Bilgi: ", 1)
+            ek = f" [bold yellow]({bilgi.strip()})[/bold yellow]" if bilgi.strip() else ""
+        else:
+            ana, ek = s, ""
+        yayin_metinleri.append(f"[bold white]{ana}[/bold white]{ek}")
+
+    panel_icerik = (
+        "[bold cyan]Takvimdeki Mevcut Yayınlar:[/bold cyan]\n\n" +
+        "\n".join(yayin_metinleri) + "\n\n"
+        "[dim]Yapılan / planlanan duyuruların numaralarını girin.\n"
+        "Örnek: 1 veya 1-2 veya 1-2-3 veya 1,2,3 (Geri dönmek için 'g' veya boş Enter):[/dim]"
+    )
+    console.print(Panel(panel_icerik, title="[bold yellow]✅ Duyuruları Tamamla", expand=False))
+
+    girdi = Prompt.ask("[bold green]Duyuru Numaraları[/bold green]", default="").strip()
+    if not girdi or girdi.lower() in ("g", "geri", "q", "iptal", "exit"):
+        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
+        return
+
+    secilen_nolar = set()
+    if girdi.lower() in ("hepsi", "tumu", "tümü", "all"):
+        secilen_nolar = set(range(1, len(yayinlar) + 1))
+    else:
+        for n_str in re.findall(r"\d+", girdi):
+            secilen_nolar.add(int(n_str))
+
+    if not secilen_nolar:
+        console.print("[bold red][HATA][/bold red] Geçerli bir duyuru numarası bulunamadı.")
+        return
+
+    yeni_satirlar = []
+    isaretlenenler = []
+
+    for i, satir in enumerate(yayinlar, 1):
+        if i in secilen_nolar:
+            # Yayının adının sonuna yeşil check sembolü ekle
+            if "✅" not in satir:
+                if " - " in satir:
+                    parcalar = satir.split(" - ", 1)
+                    guncel_satir = f"{parcalar[0]} ✅ - {parcalar[1]}"
+                else:
+                    guncel_satir = f"{satir} ✅"
+                yeni_satirlar.append(guncel_satir)
+                isaretlenenler.append(i)
+            else:
+                yeni_satirlar.append(satir)
+                isaretlenenler.append(i)
+        else:
+            yeni_satirlar.append(satir)
+
+    if not isaretlenenler:
+        console.print("[dim yellow]Belirtilen numaralar listede bulunamadı.[/dim yellow]")
+        return
+
+    yeni_icerik = "\n".join(yeni_satirlar) + "\n"
+    try:
+        with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+            f.write(yeni_icerik)
+        takvim_uzaga_gonder(yeni_icerik)
+        numaralar_str = ", ".join(str(n) for n in isaretlenenler)
+        console.print(f"\n[bold green]✓ {numaralar_str} numaralı yayın(lar) için duyurular yapıldı olarak işaretlendi! (Yeşil check eklendi)[/bold green]\n")
+    except Exception as e:
+        console.print(f"\n[bold red][HATA] Takvim kaydedilemedi: {e}[/bold red]\n")
+
+
 # =====================================================================
 # ANA MENÜ
 # =====================================================================
@@ -1676,8 +1752,9 @@ def ana_menu(kullanici_id, kullanici_adi):
             menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] {diger_adi}'e Bildirim Gönder... 📢
-[bold cyan]4.[/bold cyan] Çıkış"""
-            gecerli_secimler = ["1", "2", "3", "4", "k"]
+[bold cyan]4.[/bold cyan] Duyurular Yapıldı ✅
+[bold cyan]5.[/bold cyan] Çıkış"""
+            gecerli_secimler = ["1", "2", "3", "4", "5", "k"]
 
         console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
@@ -1696,9 +1773,15 @@ def ana_menu(kullanici_id, kullanici_adi):
 
                 if "-)" in ana_kisim:
                     no, rest = ana_kisim.split("-)", 1)
-                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest.strip()}[/bold white]{bilgi_metni}")
+                    rest_metni = rest.strip()
+                    if "✅" in rest_metni:
+                        rest_metni = rest_metni.replace("✅", "[bold green]✅[/bold green]")
+                    formatli_satirlar.append(f"[bold cyan]{no}-)[/bold cyan] [bold white]{rest_metni}[/bold white]{bilgi_metni}")
                 else:
-                    formatli_satirlar.append(f"[bold white]{ana_kisim}[/bold white]{bilgi_metni}")
+                    metin = ana_kisim
+                    if "✅" in metin:
+                        metin = metin.replace("✅", "[bold green]✅[/bold green]")
+                    formatli_satirlar.append(f"[bold white]{metin}[/bold white]{bilgi_metni}")
 
             liste_metni = "\n".join(formatli_satirlar)
         else:
@@ -1738,7 +1821,7 @@ def ana_menu(kullanici_id, kullanici_adi):
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
                 bildirimleri_kontrol_et(kullanici_id)
         else:
-            if ana_secim == "4":
+            if ana_secim == "5":
                 console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
                 if platform.system() == "Darwin":
                     try:
@@ -1756,10 +1839,13 @@ def ana_menu(kullanici_id, kullanici_adi):
                 radio_mocas_menu()
             elif ana_secim == "3":
                 bildirim_gonder(kullanici_id)
+            elif ana_secim == "4":
+                duyurulari_yapildi_isaretle()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
                 bildirimleri_kontrol_et(kullanici_id)
+
 
 
 if __name__ == "__main__":
