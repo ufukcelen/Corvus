@@ -54,22 +54,27 @@ function switchUser() {
 }
 
 // 2. Takvim Verisi Yükleme & Parse Etme
-function initCalendarData() {
-  const localData = localStorage.getItem(STORAGE_KEY_TAKVIM);
-  if (localData) {
-    try {
-      state.yayinlar = JSON.parse(localData);
-    } catch (e) {
+async function initCalendarData() {
+  // Önce doğrudan Firebase Bulut Veritabanından çekmeyi dene
+  await senkronizeEtUzak(false);
+
+  // Eğer buluttan henüz gelmediyse veya boşsa yerel depolamaya bak
+  if (state.yayinlar.length === 0) {
+    const localData = localStorage.getItem(STORAGE_KEY_TAKVIM);
+    if (localData) {
+      try {
+        state.yayinlar = JSON.parse(localData);
+      } catch (e) {
+        state.yayinlar = [...DEFAULT_YAYINLAR];
+      }
+    } else {
       state.yayinlar = [...DEFAULT_YAYINLAR];
+      kaydetYerel();
     }
-  } else {
-    state.yayinlar = [...DEFAULT_YAYINLAR];
-    kaydetYerel();
   }
 
   renderCalendar();
   updateStats();
-  senkronizeEtUzak(false);
 }
 
 function kaydetYerel() {
