@@ -84,6 +84,7 @@ async function initCalendarData() {
 
   // Doğrudan Firebase Bulut Veritabanından en güncel veriyi çek ve eşitle
   await senkronizeEtUzak(false);
+  checkGeminiAiAutoRun();
 }
 
 function kaydetYerel() {
@@ -504,16 +505,18 @@ function setupEventListeners() {
       state.activeFilter = btn.getAttribute("data-filter") || "all";
       renderCalendar();
     });
-    // Gemini AI Maç Tara Butonu
-    const geminiBtn = document.getElementById("btnGeminiAiScan");
-    if (geminiBtn) {
-      geminiBtn.addEventListener("click", () => runGeminiAiMatchScanner(true));
-    }
+  });
 
-    // Hızlı Gün Seçimi için Dinamik Doldurma
-    setupGunOptions();
-    guncelleProgramListesi();
+  // Gemini AI Maç Tara Butonu
+  const geminiBtn = document.getElementById("btnGeminiAiScan");
+  if (geminiBtn) {
+    geminiBtn.addEventListener("click", () => runGeminiAiMatchScanner(true));
   }
+
+  // Hızlı Gün Seçimi için Dinamik Doldurma
+  setupGunOptions();
+  guncelleProgramListesi();
+}
 
 // Kanal Program Havuzu (Kullanıcının Verdiği Listeler)
 const KANAL_PROGRAMLARI = {
@@ -1002,22 +1005,12 @@ function checkGeminiAiAutoRun() {
   const isSunday = (now.getDay() === 0);
   const todayStr = now.toISOString().split("T")[0];
   const lastSundayRun = localStorage.getItem("gemini_ai_last_sunday");
-  const hasRunInitial = localStorage.getItem("gemini_ai_initial_run");
 
-  // 1. "bir tek bugüne özel şimdi": Eğer henüz ilk çalıştırma yapılmadıysa hemen şimdi çalıştır!
-  if (!hasRunInitial) {
-    setTimeout(() => {
-      runGeminiAiMatchScanner(false);
-    }, 1200);
-    return;
-  }
+  // Otomatik olarak haftalık maç fikstürünü tara ve eksik maçları takvime yerleştir
+  runGeminiAiMatchScanner(false);
 
-  // 2. "her hafta pazar günü": Pazar günüyse ve bu pazar henüz çalışmadıysa çalıştır!
   if (isSunday && lastSundayRun !== todayStr) {
-    setTimeout(() => {
-      runGeminiAiMatchScanner(false);
-      localStorage.setItem("gemini_ai_last_sunday", todayStr);
-    }, 1200);
+    localStorage.setItem("gemini_ai_last_sunday", todayStr);
   }
 }
 
