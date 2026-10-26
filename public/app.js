@@ -121,7 +121,7 @@ function parseYayinSatiri(satir, index) {
   let no = index + 1;
   let isDone = temizSatir.includes("✅");
   let isCanceled = temizSatir.includes("❌");
-  
+
   let bilgi = "";
   if (temizSatir.includes(" | Bilgi: ")) {
     const parts = temizSatir.split(" | Bilgi: ");
@@ -257,6 +257,9 @@ function renderCalendar() {
             </button>
             <button class="action-icon-btn cancel-btn" title="Yayını İptal Et (❌)" onclick="toggleYayinDurumu(${item.index}, 'cancel')">
               ✕
+            </button>
+            <button class="action-icon-btn gcal-btn" title="Bu yayını Google Takvim'e ekle / aç" onclick="openGoogleCalendarForBroadcast(${item.index})">
+              📅
             </button>
             <button class="action-icon-btn delete-btn" title="Yayını Takvimden Sil" onclick="silYayin(${item.index})">
               🗑️
@@ -415,12 +418,117 @@ function silYayin(index) {
   showToast("Yayın takvimden silindi ve liste yeniden numaralandırıldı.", "info");
 }
 
+// =====================================================================
+// GOOGLE TAKVİM ("YAYIN TAKVİMİ") YARDIMCILARI
+// =====================================================================
+const GOOGLE_CALENDAR_ID = "c1765f9d421b1821978ac5fabbcd06b0df0b80f212403476b4d39ea7057138b6@group.calendar.google.com";
+
+function calculateBroadcastDate(gunStr, saatStr) {
+  const now = new Date();
+  let saat = 20;
+  let dakika = 0;
+  if (saatStr && saatStr.includes(":")) {
+    const parts = saatStr.trim().split(":");
+    saat = parseInt(parts[0], 10) || 20;
+    dakika = parseInt(parts[1], 10) || 0;
+  }
+
+  const gunLower = (gunStr || "").toLowerCase().trim();
+
+  // 1. Sayı ve Ay Tespiti (örn: "30 Ekim", "30 Ekim (Cuma)")
+  const numMatch = gunLower.match(/\b([1-9]|[12]\d|3[01])\b/);
+  if (numMatch) {
+    const dayNum = parseInt(numMatch[1], 10);
+    let monthIdx = now.getMonth();
+    for (let m = 0; m < AY_ISIMLERI.length; m++) {
+      if (gunLower.includes(AY_ISIMLERI[m].toLowerCase())) {
+        monthIdx = m;
+        break;
+      }
+    }
+    const year = now.getFullYear();
+    const d = new Date(year, monthIdx, dayNum, saat, dakika);
+    return d;
+  }
+
+  // 2. Bugün / Yarın
+  if (gunLower.includes("bugün")) {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), saat, dakika);
+  }
+  if (gunLower.includes("yarın")) {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, saat, dakika);
+  }
+
+  // 3. Gün Adı (örn: "Çarşamba", "Her Cuma")
+  for (let i = 0; i < GUN_ADLARI.length; i++) {
+    if (gunLower.includes(GUN_ADLARI[i].toLowerCase())) {
+      const curDow = (now.getDay() + 6) % 7; // 0 = Pazartesi
+      let diff = (i - curDow + 7) % 7;
+      if (diff === 0) {
+        if (now.getHours() > saat || (now.getHours() === saat && now.getMinutes() >= dakika)) {
+          diff = 7;
+        }
+      }
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, saat, dakika);
+    }
+  }
+
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), saat, dakika);
+}
+
+function openGoogleCalendarForBroadcast(index) {
+  if (index < 0 || index >= state.yayinlar.length) return;
+  const item = parseYayinSatiri(state.yayinlar[index], index);
+
+  const startDt = calculateBroadcastDate(item.gun, item.saat);
+  const endDt = new Date(startDt.getTime() + 90 * 60 * 1000); // 90 dakika
+
+  const formatGCal = (d) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const y = d.getUTCFullYear();
+    const m = pad(d.getUTCMonth() + 1);
+    const day = pad(d.getUTCDate());
+    const h = pad(d.getUTCHours());
+    const min = pad(d.getUTCMinutes());
+    const s = pad(d.getUTCSeconds());
+    return `${y}${m}${day}T${h}${min}${s}Z`;
+  };
+
+  let titlePrefix = "📅 ";
+  let durumMetni = "Planlanan Canlı Yayın 📅";
+  if (item.isCanceled) {
+    titlePrefix = "❌ [İPTAL] ";
+    durumMetni = "İptal Edildi ❌";
+  } else if (item.isDone) {
+    titlePrefix = "✅ ";
+    durumMetni = "Tamamlandı / Hazır ✅";
+  }
+
+  const title = `${titlePrefix}${item.yayinAdi} (${item.kanal})`;
+  const descLines = [
+    `Kanal: ${item.kanal}`,
+    `Program: ${item.yayinAdi}`,
+    `Planlanan Zaman: ${item.gun} - ${item.saat}`,
+    `Durum: ${durumMetni}`
+  ];
+  if (item.bilgi) {
+    descLines.push(`Ek Not / Maç: ${item.bilgi}`);
+  }
+  descLines.push("Panel: https://tellal-otomasyon.web.app");
+
+  const details = descLines.join("\n");
+  const dates = `${formatGCal(startDt)}/${formatGCal(endDt)}`;
+
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dates}&details=${encodeURIComponent(details)}&add=${encodeURIComponent(GOOGLE_CALENDAR_ID)}`;
+  window.open(url, "_blank");
+}
+
 // 8. Firebase Realtime Database & Ntfy Çift Yönlü Senkronizasyon (tellal.py ile Anında Konuşma)
 const FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db";
 
 async function yayinlariBulutaGonder(ozetMesaj = "") {
   const icerik = state.yayinlar.join("\n") + (state.yayinlar.length ? "\n" : "");
-  
+
   // 1. Birincil: Firebase Realtime Database'e Anında Yaz
   try {
     await fetch(`${FIREBASE_DB_URL}/takvim.json`, {
@@ -1087,7 +1195,7 @@ function broadcastMatchesDay(item, d, monthIdx, year, dayName, isToday, todayDat
     const now = new Date();
     const currentDayOfWeek = (now.getDay() + 6) % 7; // 0 = Pazartesi
     const targetDayOfWeek = GUN_ADLARI.findIndex(gn => gn.toLowerCase() === dayNameLower);
-    
+
     if (targetDayOfWeek !== -1) {
       let diffDays = targetDayOfWeek - currentDayOfWeek;
       if (diffDays < 0) diffDays += 7; // Geçmiş güne değil, önümüzdeki o güne eşle
@@ -1718,8 +1826,8 @@ function openGeminiMatchModal(matchId) {
   const bransAdi = match.bransAdi || (brans === "voleybol" ? "Voleybol" : brans === "nba" ? "NBA" : brans === "eurolig" ? "EuroLig Basket" : brans === "tenis" ? "Tenis" : brans === "f1" ? "Formula 1" : "Futbol");
 
   const isF1 = brans === "f1";
-  const [evSahibi, deplasman] = (!isF1 && match.takimlar.includes(" - ")) 
-    ? match.takimlar.split(" - ") 
+  const [evSahibi, deplasman] = (!isF1 && match.takimlar.includes(" - "))
+    ? match.takimlar.split(" - ")
     : [match.takimlar, ""];
 
   const ayAdi = AY_ISIMLERI[match.ay] || "";
@@ -2180,7 +2288,7 @@ function showToast(message, type = "info") {
 
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
-  
+
   let icon = "ℹ️";
   if (type === "success") icon = "✓";
   if (type === "warning") icon = "⚠️";

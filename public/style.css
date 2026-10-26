@@ -661,7 +661,31 @@ body {
 
 .action-icon-btn.done-btn:hover { color: var(--success); border-color: var(--success); }
 .action-icon-btn.cancel-btn:hover { color: var(--danger); border-color: var(--danger); }
+.action-icon-btn.gcal-btn:hover { color: #60a5fa; border-color: #60a5fa; }
 .action-icon-btn.delete-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+.btn-gcalendar-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(66, 133, 244, 0.12);
+  border: 1px solid rgba(66, 133, 244, 0.35);
+  color: #60a5fa;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition);
+  cursor: pointer;
+}
+
+.btn-gcalendar-header:hover {
+  background: rgba(66, 133, 244, 0.25);
+  border-color: #60a5fa;
+  color: #93c5fd;
+  transform: translateY(-1px);
+}
 
 /* Boş Liste Durumu */
 .empty-state {

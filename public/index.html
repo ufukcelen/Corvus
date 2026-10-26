@@ -8,7 +8,7 @@
   <meta name="description"
     content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css?v=5.0">
+  <link rel="stylesheet" href="style.css?v=6.0">
   <script>
     (function() {
       try {
@@ -140,7 +140,17 @@
           <span>📅</span>
           <span>Planlanan Gelecek Yayınlar</span>
         </h2>
-        <span class="section-badge" id="broadcastCountBadge">0 Yayın</span>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <a href="https://calendar.google.com/calendar/u/0?cid=YzE3NjVmOWQ0MjFiMTgyMTk3OGFjNWZhYmJjZDA2YjBkZjBiODBmMjEyNDAzNDc2YjRkMzllYTcwNTcxMzhiNkBncm91cC5jYWxlbmRhci5nb29nbGUuY29t"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="btn-gcalendar-header"
+             title="Google Takvim'de 'Yayın Takvimi'ni Aç">
+            <span style="font-size: 1.05rem;">📅</span>
+            <span>Google Takvimi Aç</span>
+          </a>
+          <span class="section-badge" id="broadcastCountBadge">0 Yayın</span>
+        </div>
       </div>
 
       <div class="broadcast-list" id="broadcastListContainer">
@@ -362,7 +372,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=5.0"></script>
+  <script src="app.js?v=6.0"></script>
 </body>
 
 </html>

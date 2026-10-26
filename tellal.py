@@ -1639,6 +1639,14 @@ def takvim_senkronize_et():
                         f.write(icerik)
                     with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
                         f.write(str(son_zaman))
+                    guncellendi = True
+        except Exception:
+            pass
+
+    if guncellendi:
+        try:
+            from gcalendar_sync import google_takvim_senkronize_et
+            google_takvim_senkronize_et(satirlar)
         except Exception:
             pass
 
@@ -1681,6 +1689,13 @@ def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
                         f.write(str(t))
             except Exception:
                 pass
+    except Exception:
+        pass
+
+    # 3. Üçüncül: Google Takvim ("Yayın Takvimi") Otomatik Eşitleme
+    try:
+        from gcalendar_sync import google_takvim_senkronize_et
+        google_takvim_senkronize_et(satirlar)
     except Exception:
         pass
 
