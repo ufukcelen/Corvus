@@ -262,14 +262,19 @@ function updateStats() {
 function yeniYayinKaydet(e) {
   e.preventDefault();
   const form = document.getElementById("addBroadcastForm");
-  const program = document.getElementById("inputProgram").value.trim();
   const kanal = document.getElementById("inputKanal").value;
+  const selectElem = document.getElementById("inputProgramSelect");
+  let program = selectElem ? selectElem.value.trim() : "";
+  if (program === "__CUSTOM__") {
+    const customInput = document.getElementById("inputCustomProgram");
+    program = customInput ? customInput.value.trim() : "";
+  }
   const gun = document.getElementById("inputGun").value.trim();
   const saat = document.getElementById("inputSaat").value.trim();
   const bilgi = document.getElementById("inputBilgi").value.trim();
 
   if (!program || !gun || !saat) {
-    showToast("Lütfen program adı, gün ve saat alanlarını doldurun.", "warning");
+    showToast("Lütfen program, gün ve saat alanlarını doldurun.", "warning");
     return;
   }
 
@@ -285,6 +290,7 @@ function yeniYayinKaydet(e) {
   updateStats();
   closeAddModal();
   form.reset();
+  guncelleProgramListesi();
 
   // Ntfy üzerinden buluta ve masaüstü tellal.py'ye aktar!
   yayinlariBulutaGonder(`${state.currentUser} webden yeni yayın ekledi: ${program}`);
@@ -501,6 +507,69 @@ function setupEventListeners() {
 
   // Hızlı Gün Seçimi için Dinamik Doldurma
   setupGunOptions();
+  guncelleProgramListesi();
+}
+
+// Kanal Program Havuzu (Kullanıcının Verdiği Listeler)
+const KANAL_PROGRAMLARI = {
+  "Uykusuz Tosba": [
+    { ad: "Haftalık Program", saat: "20:00" },
+    { ad: "Canlı Maç Sohbeti", saat: "20:30" },
+    { ad: "Maç Sonu", saat: "22:45" },
+    { ad: "Tek Maçtan Yatanlar", saat: "23:00" },
+    { ad: "FC27 Kariyer", saat: "18:00" },
+    { ad: "Tosba Lojistik (ETS2)", saat: "21:00" }
+  ],
+  "Radio Mocas": [
+    { ad: "Filtresiz Memleket Havası", saat: "21:00" },
+    { ad: "Albert ve Cem", saat: "21:30" },
+    { ad: "Mocas Bey ve Radyosu", saat: "22:00" },
+    { ad: "Aklımdaki Filmler", saat: "21:00" }
+  ]
+};
+
+function guncelleProgramListesi() {
+  const kanalSelect = document.getElementById("inputKanal");
+  const programSelect = document.getElementById("inputProgramSelect");
+  const customGroup = document.getElementById("customProgramGroup");
+  const saatInput = document.getElementById("inputSaat");
+  if (!kanalSelect || !programSelect) return;
+
+  const secilenKanal = kanalSelect.value || "Uykusuz Tosba";
+  const programlar = KANAL_PROGRAMLARI[secilenKanal] || [];
+
+  let optionsHtml = programlar.map((p, idx) => {
+    return `<option value="${escapeHtml(p.ad)}" data-saat="${p.saat}">${idx + 1}. ${escapeHtml(p.ad)}</option>`;
+  }).join("");
+
+  optionsHtml += `<option value="__CUSTOM__">✏️ Diğer / Özel Yayın Adı Girin...</option>`;
+  programSelect.innerHTML = optionsHtml;
+
+  if (customGroup) customGroup.style.display = "none";
+
+  // İlk programın saatini otomatik doldur
+  if (programlar.length > 0 && saatInput) {
+    saatInput.value = programlar[0].saat || "20:00";
+  }
+}
+
+function onProgramSelectChange() {
+  const programSelect = document.getElementById("inputProgramSelect");
+  const customGroup = document.getElementById("customProgramGroup");
+  const customInput = document.getElementById("inputCustomProgram");
+  const saatInput = document.getElementById("inputSaat");
+  if (!programSelect) return;
+
+  if (programSelect.value === "__CUSTOM__") {
+    if (customGroup) customGroup.style.display = "block";
+    if (customInput) customInput.focus();
+  } else {
+    if (customGroup) customGroup.style.display = "none";
+    const secilenOpt = programSelect.options[programSelect.selectedIndex];
+    if (secilenOpt && secilenOpt.dataset.saat && saatInput) {
+      saatInput.value = secilenOpt.dataset.saat;
+    }
+  }
 }
 
 function setupGunOptions() {
@@ -522,7 +591,9 @@ function openAddModal() {
   const modal = document.getElementById("addBroadcastModal");
   if (modal) {
     modal.classList.add("open");
-    document.getElementById("inputProgram").focus();
+    guncelleProgramListesi();
+    const pSelect = document.getElementById("inputProgramSelect");
+    if (pSelect) pSelect.focus();
   }
 }
 
@@ -532,11 +603,16 @@ function closeAddModal() {
 }
 
 // =====================================================================
-// AYLIK TAKVİM FONKSİYONLARI
+// AYLIK TAKVİM FONKSİYONLARI (Sleek Dark Grid - Image 2)
 // =====================================================================
 const AY_ISIMLERI = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"
+];
+
+const AY_KISALTMALARI = [
+  "Oca", "Şub", "Mar", "Nis", "May", "Haz",
+  "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"
 ];
 
 const GUN_ADLARI = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -585,7 +661,8 @@ function renderMonthCalendar() {
   const title = document.getElementById("calendarCurrentMonthTitle");
   if (!grid || !title) return;
 
-  title.innerHTML = `<span>🗓️</span> <span>${AY_ISIMLERI[state.calendarMonth]} ${state.calendarYear} Yayın Takvimi</span>`;
+  // Başlık: "Ekim 2026" (Ekran görüntüsündeki gibi temiz metin)
+  title.textContent = `${AY_ISIMLERI[state.calendarMonth]} ${state.calendarYear}`;
 
   const now = new Date();
   const isThisMonth = (now.getFullYear() === state.calendarYear && now.getMonth() === state.calendarMonth);
@@ -595,19 +672,21 @@ function renderMonthCalendar() {
   const firstDayIndex = (firstDay.getDay() + 6) % 7; // 0 = Pazartesi, 6 = Pazar
   const daysInMonth = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
   const prevMonthDays = new Date(state.calendarYear, state.calendarMonth, 0).getDate();
+  const nextMonthIdx = (state.calendarMonth + 1) % 12;
 
   const parsedItems = state.yayinlar.map((s, i) => parseYayinSatiri(s, i));
 
   let html = "";
 
-  // 1. Önceki aydan kalan günler
+  // 1. Önceki aydan kalan günler (Sol boşluklar)
   for (let i = firstDayIndex - 1; i >= 0; i--) {
     const prevDayNum = prevMonthDays - i;
     html += `
-      <div class="calendar-day-cell other-month">
-        <div class="day-header-row">
-          <span class="day-number">${prevDayNum}</span>
+      <div class="cal-day-cell other-month">
+        <div class="cal-day-top">
+          <span class="cal-day-number">${prevDayNum}</span>
         </div>
+        <div class="cal-cell-events"></div>
       </div>
     `;
   }
@@ -619,6 +698,17 @@ function renderMonthCalendar() {
     const dayOfWeek = (dayDate.getDay() + 6) % 7;
     const dayName = GUN_ADLARI[dayOfWeek];
 
+    // Günün sağ üst köşesindeki etiket: 1. günse "1 Eki", bugünse kırmızı yuvarlak, değilse sadece sayı
+    let dayTopHtml = "";
+    if (isToday) {
+      dayTopHtml = `<span class="cal-today-circle">${d}</span>`;
+    } else if (d === 1) {
+      dayTopHtml = `<span class="cal-day-number first-day-text">1 ${AY_KISALTMALARI[state.calendarMonth]}</span>`;
+    } else {
+      dayTopHtml = `<span class="cal-day-number">${d}</span>`;
+    }
+
+    // Bu güne denk gelen yayınları bul
     const matchingBroadcasts = parsedItems.filter(item => {
       const g = item.gun.toLowerCase().trim();
       const targetName = dayName.toLowerCase();
@@ -633,44 +723,53 @@ function renderMonthCalendar() {
       return false;
     });
 
-    let badgesHtml = "";
+    let eventsHtml = "";
     if (matchingBroadcasts.length > 0) {
-      badgesHtml = `
-        <div class="day-events-container">
-          ${matchingBroadcasts.map(b => {
-            const badgeClass = b.isDone ? "done" : (b.isCanceled ? "canceled" : "");
-            return `
-              <div class="day-broadcast-badge ${badgeClass}" 
-                   title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)})"
-                   onclick="filterByCalendarBroadcast('${escapeHtml(b.yayinAdi)}')">
-                ${escapeHtml(b.saat)} ${escapeHtml(b.yayinAdi)}
-              </div>
-            `;
-          }).join("")}
-        </div>
-      `;
+      eventsHtml = matchingBroadcasts.map(b => {
+        const chClass = b.kanal === "Uykusuz Tosba" ? "tosba" : "mocas";
+        let statusClass = "";
+        if (b.isDone) statusClass = "done";
+        else if (b.isCanceled) statusClass = "canceled";
+
+        return `
+          <div class="cal-event-pill ${chClass} ${statusClass}" 
+               title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)})"
+               onclick="event.stopPropagation(); filterByCalendarBroadcast('${escapeHtml(b.yayinAdi)}')">
+            ${escapeHtml(b.saat)} ${escapeHtml(b.yayinAdi)}
+          </div>
+        `;
+      }).join("");
     }
 
     html += `
-      <div class="calendar-day-cell ${isToday ? "today-cell" : ""}" data-day="${d}" onclick="selectCalendarDay(${d}, '${dayName}')">
-        <div class="day-header-row">
-          <span class="day-number">${d}</span>
-          ${isToday ? `<span class="today-badge-dot">Bugün</span>` : ""}
+      <div class="cal-day-cell" data-day="${d}" onclick="selectCalendarDay(${d}, '${dayName}')">
+        <div class="cal-day-top">
+          ${dayTopHtml}
         </div>
-        ${badgesHtml}
+        <div class="cal-cell-events">
+          ${eventsHtml}
+        </div>
       </div>
     `;
   }
 
-  // 3. Gelecek aydan kalan günler (grid'i tamamlamak için)
+  // 3. Gelecek aydan kalan günler
   const totalCells = firstDayIndex + daysInMonth;
   const remainingCells = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
   for (let n = 1; n <= remainingCells; n++) {
+    let nextDayLabel = "";
+    if (n === 1) {
+      nextDayLabel = `<span class="cal-day-number first-day-text">1 ${AY_KISALTMALARI[nextMonthIdx]}</span>`;
+    } else {
+      nextDayLabel = `<span class="cal-day-number">${n}</span>`;
+    }
+
     html += `
-      <div class="calendar-day-cell other-month">
-        <div class="day-header-row">
-          <span class="day-number">${n}</span>
+      <div class="cal-day-cell other-month">
+        <div class="cal-day-top">
+          ${nextDayLabel}
         </div>
+        <div class="cal-cell-events"></div>
       </div>
     `;
   }
@@ -688,7 +787,8 @@ function selectCalendarDay(day, dayName) {
       }
     }
   }
-  showToast(`🗓️ ${day} ${AY_ISIMLERI[state.calendarMonth]} (${dayName}) seçildi. Yeni yayın ekleyebilirsiniz.`, "info");
+  openAddModal();
+  showToast(`🗓️ ${day} ${AY_ISIMLERI[state.calendarMonth]} (${dayName}) seçildi. Yayın ekleyebilirsiniz.`, "info");
 }
 
 function filterByCalendarBroadcast(title) {

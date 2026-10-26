@@ -6,7 +6,7 @@
   <title>Tellal Cloud — YouTube Yayın Takvimi & Planlama Portalı</title>
   <meta name="description" content="Uykusuz Tosba ve Radio Mocas YouTube kanalları için bulut tabanlı canlı yayın planlama, takvim yönetimi ve duyuru otomasyon portalı.">
   <link rel="icon" type="image/png" href="icon.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=3.5">
 </head>
 <body>
 
@@ -22,7 +22,7 @@
     <!-- Üst Başlık (Navbar) -->
     <header class="header-nav">
       <div class="brand-section">
-        <img src="logo.png" alt="Tellal Logo" class="brand-avatar-img">
+        <img src="logo.png" alt="Tellal Logo" class="brand-avatar-img" style="width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; max-height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0; display: block;">
         <div class="brand-title">
           <h1>Tellal Cloud <span class="brand-badge">Hub</span></h1>
           <p style="font-size: 0.78rem; color: var(--text-dim); margin-top: 2px;">
@@ -127,33 +127,32 @@
       </div>
     </main>
 
-    <!-- İçinde Bulunduğumuz Ayın İnteraktif Takvimi -->
+    <!-- İçinde Bulunduğumuz Ayın İnteraktif Takvimi (Sleek Apple/Google Calendar Design) -->
     <section class="calendar-month-section" id="monthCalendarSection" aria-label="Aylık Yayın Takvimi">
       <div class="calendar-month-header">
-        <h3 id="calendarCurrentMonthTitle">
-          <span>🗓️</span>
-          <span>Aylık Yayın Takvimi</span>
-        </h3>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="month-nav-btn" id="prevMonthBtn" title="Önceki Ay">◀ Önceki</button>
-          <button class="month-nav-btn" id="todayMonthBtn" title="Bugüne Dön">Bugün</button>
-          <button class="month-nav-btn" id="nextMonthBtn" title="Sonraki Ay">Sonraki ▶</button>
+        <div class="calendar-title-text" id="calendarCurrentMonthTitle">
+          Ekim 2026
+        </div>
+        <div class="cal-nav-group">
+          <button class="cal-nav-arrow-btn" id="prevMonthBtn" title="Önceki Ay" aria-label="Önceki Ay">&lt;</button>
+          <button class="cal-nav-today-btn" id="todayMonthBtn" title="Bugüne Dön">Bugün</button>
+          <button class="cal-nav-arrow-btn" id="nextMonthBtn" title="Sonraki Ay" aria-label="Sonraki Ay">&gt;</button>
         </div>
       </div>
 
       <!-- Gün Başlıkları (Pzt - Paz) -->
-      <div class="calendar-weekdays-grid">
-        <div class="calendar-weekday-title">Pzt</div>
-        <div class="calendar-weekday-title">Sal</div>
-        <div class="calendar-weekday-title">Çar</div>
-        <div class="calendar-weekday-title">Per</div>
-        <div class="calendar-weekday-title">Cum</div>
-        <div class="calendar-weekday-title">Cmt</div>
-        <div class="calendar-weekday-title">Paz</div>
+      <div class="calendar-weekdays-row">
+        <div class="cal-weekday-label">Pzt</div>
+        <div class="cal-weekday-label">Sal</div>
+        <div class="cal-weekday-label">Çar</div>
+        <div class="cal-weekday-label">Per</div>
+        <div class="cal-weekday-label">Cum</div>
+        <div class="cal-weekday-label">Cmt</div>
+        <div class="cal-weekday-label">Paz</div>
       </div>
 
-      <!-- Gün Kutuları (JS ile doldurulur) -->
-      <div class="calendar-days-grid" id="calendarDaysGrid">
+      <!-- Gün Tablosu (JS ile doldurulur) -->
+      <div class="calendar-grid-table" id="calendarDaysGrid">
         <!-- JS ile dinamik günler -->
       </div>
     </section>
@@ -207,15 +206,10 @@
 
       <form id="addBroadcastForm">
         <div class="modal-body">
-          <div class="form-group">
-            <label for="inputProgram">Yayın / Program Adı</label>
-            <input type="text" id="inputProgram" placeholder="Örn: Canlı Maç (FB - GS), Haftalık Program, Albert ve Cem" required>
-          </div>
-
           <div class="form-row">
             <div class="form-group">
               <label for="inputKanal">Kanal</label>
-              <select id="inputKanal">
+              <select id="inputKanal" onchange="guncelleProgramListesi()">
                 <option value="Uykusuz Tosba">Uykusuz Tosba</option>
                 <option value="Radio Mocas">Radio Mocas</option>
               </select>
@@ -227,6 +221,18 @@
                 <!-- JS ile güncel günler yüklenecek -->
               </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label for="inputProgramSelect">Yayın / Program Adı (Listeden Seçin)</label>
+            <select id="inputProgramSelect" onchange="onProgramSelectChange()" required>
+              <!-- JS ile kanala göre dinamik doldurulur -->
+            </select>
+          </div>
+
+          <div class="form-group" id="customProgramGroup" style="display: none;">
+            <label for="inputCustomProgram">Özel Yayın Adı</label>
+            <input type="text" id="inputCustomProgram" placeholder="Örn: Özel Derbi Canlı Yayını">
           </div>
 
           <div class="form-row">
@@ -257,6 +263,6 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=3.0"></script>
+  <script src="app.js?v=3.5"></script>
 </body>
 </html>
