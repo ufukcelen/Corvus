@@ -31,8 +31,13 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.0"
+SURUM = "1.4.1"
 SURUM_NOTLARI = {
+    "1.4.1": [
+        "Ufuk & Yiğit arasında canlı 'Chat' sohbet kutusu eklendi.",
+        "Menüye 'Chat' seçeneği getirilerek anlık mesajlaşma sağlandı.",
+        "Gelecek Yayınlar altına WhatsApp stili mesaj geçmişi kutusu entegre edildi.",
+    ],
     "1.4.0": [
         "Ufuk & Yiğit arasında canlı 'Chat' sohbet kutusu eklendi.",
         "Menüye 'Chat' seçeneği getirilerek anlık mesajlaşma sağlandı.",
