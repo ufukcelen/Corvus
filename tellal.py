@@ -349,8 +349,10 @@ def masaustu_app_olustur():
             yeni_olusturuldu = True
         except Exception:
             return
+    else:
+        return  # uygulama zaten var: ikon işlemini tekrarlama (her açılışı yavaşlatır)
 
-    # İkon dosyasını ve özel Finder rozetini güncelle
+    # İkon dosyasını ve özel Finder rozetini ayarla (sadece ilk oluşturmada)
     try:
         icns_hedef = os.path.join(app_yolu, "Contents", "Resources", "applet.icns")
         assets_car = os.path.join(app_yolu, "Contents", "Resources", "Assets.car")
@@ -363,7 +365,7 @@ def masaustu_app_olustur():
             shutil.copy2(icns_kaynak, icns_hedef)
             subprocess.run(["touch", app_yolu], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        if os.path.exists(png_kaynak):
+        if os.path.exists(png_kaynak) and subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
@@ -825,7 +827,7 @@ twitch.com/radiomocas
 """
 
 
-def seo_memleket_yaz(saat, video_adi):
+def seo_memleket_yaz(saat, video_adi, hedef_klasor=None):
     icerik = MEM_SEO_SABLON.format(saat=saat)
     plan, onceki_gun = planlama_saati(saat)
     if plan:
@@ -834,7 +836,7 @@ def seo_memleket_yaz(saat, video_adi):
     else:
         planla = "-Bu videoyu yayın saatinden 4 saat önceye planla"
     icerik += f"\n\n\n-Cem ve Burhan'ı etiketle\n\n-Videoya cyberpunk türü veya Cem'in şarkılarından birini koy\n\n{planla}\n"
-    seo_yaz("seo_Filtresiz_memleket_Duyuru.txt", icerik, video_adi)
+    seo_yaz("seo_Filtresiz_memleket_Duyuru.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
 
 
 def memleket_duyuru_yap():
