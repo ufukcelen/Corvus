@@ -342,9 +342,28 @@ function silYayin(index) {
   showToast("Yayın takvimden silindi ve liste yeniden numaralandırıldı.", "info");
 }
 
-// 8. Ntfy / Cloud Çift Yönlü Senkronizasyon (tellal.py ile Anında Konuşma)
+// 8. Firebase Realtime Database & Ntfy Çift Yönlü Senkronizasyon (tellal.py ile Anında Konuşma)
+const FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db";
+
 async function yayinlariBulutaGonder(ozetMesaj = "") {
   const icerik = state.yayinlar.join("\n") + (state.yayinlar.length ? "\n" : "");
+  
+  // 1. Birincil: Firebase Realtime Database'e Anında Yaz
+  try {
+    await fetch(`${FIREBASE_DB_URL}/takvim.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        satirlar: state.yayinlar,
+        son_guncelleme: Date.now(),
+        guncelleyen: state.currentUser
+      })
+    });
+  } catch (err) {
+    console.warn("Firebase RTDB yazma hatası:", err);
+  }
+
+  // 2. İkincil: Ntfy Kanalına Yedek Bildirim Gönder
   const payload = {
     topic: NTFY_TOPIC_TAKVIM,
     title: "Tellal Takvim Güncellemesi (Web)",
@@ -364,7 +383,7 @@ async function yayinlariBulutaGonder(ozetMesaj = "") {
       if (data.time) state.lastSyncTime = data.time;
     }
   } catch (err) {
-    console.warn("Bulut senkronizasyonu ağ hatası:", err);
+    console.warn("Ntfy senkronizasyonu ağ hatası:", err);
   }
 }
 
@@ -374,57 +393,82 @@ async function senkronizeEtUzak(bildirimVer = true) {
   const syncBtn = document.getElementById("manualSyncBtn");
   if (syncBtn) syncBtn.classList.add("rotating");
 
+  let guncellendi = false;
+
+  // 1. Önce Firebase Realtime Database'den en güncel takvimi çek
   try {
-    const url = `https://ntfy.sh/${NTFY_TOPIC_TAKVIM}/json?poll=1&since=all`;
-    const res = await fetch(url);
+    const res = await fetch(`${FIREBASE_DB_URL}/takvim.json?t=${Date.now()}`);
     if (res.ok) {
-      const text = await res.text();
-      const lines = text.trim().split("\n");
-      let enYeniMesaj = null;
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const d = JSON.parse(line);
-          if (d.event === "message" && d.time >= state.lastSyncTime) {
-            enYeniMesaj = d;
-            state.lastSyncTime = d.time;
-          }
-        } catch (e) {}
-      }
-
-      if (enYeniMesaj && enYeniMesaj.message) {
-        let msg = enYeniMesaj.message;
-        if (msg === "__BOS_TAKVIM__") msg = "";
-        const gelenSatirlar = msg.split("\n").map(s => s.trim()).filter(s => s.length > 0);
-        
-        if (JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
-          state.yayinlar = gelenSatirlar;
+      const data = await res.json();
+      if (data && Array.isArray(data.satirlar)) {
+        if (JSON.stringify(data.satirlar) !== JSON.stringify(state.yayinlar)) {
+          state.yayinlar = data.satirlar;
           kaydetYerel();
           renderCalendar();
           updateStats();
-          if (bildirimVer) showToast("✓ Buluttan en güncel yayın takvimi eşitlendi!", "success");
+          guncellendi = true;
+          if (bildirimVer) {
+            const kimden = data.guncelleyen ? `(${data.guncelleyen})` : "";
+            showToast(`✓ Firebase Buluttan en güncel takvim eşitlendi! ${kimden}`, "success");
+          }
         } else if (bildirimVer) {
-          showToast("Takvim zaten güncel.", "info");
+          showToast("Takvim güncel.", "info");
         }
-      } else if (bildirimVer) {
-        showToast("Takvim güncel.", "info");
       }
     }
   } catch (err) {
-    console.warn("Uzak takvim denetlenemedi:", err);
-    if (bildirimVer) showToast("Bağlantı hatası: Sunucuya ulaşılamadı.", "error");
-  } finally {
-    state.isSyncing = false;
-    if (syncBtn) syncBtn.classList.remove("rotating");
+    console.warn("Firebase RTDB okunamadı, Ntfy deneniyor:", err);
   }
+
+  // 2. Eğer Firebase'den alınamadıysa fallback olarak Ntfy'yi dene
+  if (!guncellendi) {
+    try {
+      const url = `https://ntfy.sh/${NTFY_TOPIC_TAKVIM}/json?poll=1&since=all`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.trim().split("\n");
+        let enYeniMesaj = null;
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const d = JSON.parse(line);
+            if (d.event === "message" && d.time >= state.lastSyncTime) {
+              enYeniMesaj = d;
+              state.lastSyncTime = d.time;
+            }
+          } catch (e) {}
+        }
+
+        if (enYeniMesaj && enYeniMesaj.message) {
+          let msg = enYeniMesaj.message;
+          if (msg === "__BOS_TAKVIM__") msg = "";
+          const gelenSatirlar = msg.split("\n").map(s => s.trim()).filter(s => s.length > 0);
+          
+          if (JSON.stringify(gelenSatirlar) !== JSON.stringify(state.yayinlar)) {
+            state.yayinlar = gelenSatirlar;
+            kaydetYerel();
+            renderCalendar();
+            updateStats();
+            if (bildirimVer) showToast("✓ Buluttan en güncel yayın takvimi eşitlendi!", "success");
+          }
+        }
+      }
+    } catch (err) {
+      if (bildirimVer && !guncellendi) showToast("Bağlantı hatası: Sunucuya ulaşılamadı.", "error");
+    }
+  }
+
+  state.isSyncing = false;
+  if (syncBtn) syncBtn.classList.remove("rotating");
 }
 
 function startNtfyPolling() {
-  // Her 12 saniyede bir sessizce uzak sunucudan değişiklik var mı diye kontrol et
+  // Her 6 saniyede bir sessizce Firebase Realtime Database'den değişiklik var mı diye kontrol et
   setInterval(() => {
     senkronizeEtUzak(false);
-  }, 12000);
+  }, 6000);
 }
 
 // 9. Event Listener'lar ve Modal Kontrolleri

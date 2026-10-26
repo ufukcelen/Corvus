@@ -1130,6 +1130,23 @@ def ascii_norm(metin):
 
 
 def fc_takim_oku():
+    # 1. Önce buluttan okumayı dene
+    try:
+        r = requests.get(f"{FIREBASE_DB_URL}/durum/fc_takim.json", timeout=2.0)
+        if r.status_code == 200 and r.json():
+            ad_bulut = r.json()
+            if isinstance(ad_bulut, str) and ad_bulut.strip():
+                # Yerel dosyayı da senkronize et
+                try:
+                    with open(FC_TAKIM_DOSYASI, "w", encoding="utf-8") as f:
+                        json.dump({"takim": ad_bulut.strip()}, f, ensure_ascii=False)
+                except Exception:
+                    pass
+                return ad_bulut.strip()
+    except Exception:
+        pass
+
+    # 2. Yerel dosyadan oku
     try:
         with open(FC_TAKIM_DOSYASI, encoding="utf-8") as f:
             ad = json.load(f).get("takim")
@@ -1144,6 +1161,10 @@ def fc_takim_oku():
 def fc_takim_yaz(ad):
     with open(FC_TAKIM_DOSYASI, "w", encoding="utf-8") as f:
         json.dump({"takim": ad}, f, ensure_ascii=False)
+    try:
+        requests.put(f"{FIREBASE_DB_URL}/durum/fc_takim.json", json=ad, timeout=2.0)
+    except Exception:
+        pass
 
 
 def fc_takim_ara(giris):
@@ -1475,11 +1496,12 @@ def bildirim_gonder(kullanici_id):
 
 
 # =====================================================================
-# TAKVİM VE GELECEK YAYINLAR SİSTEMİ
+# TAKVİM VE GELECEK YAYINLAR SİSTEMİ (Firebase RTDB + Yerel Senkronizasyon)
 # =====================================================================
 TAKVIM_DOSYASI = os.path.join(SCRIPT_DIR, "takvim.txt")
 TAKVIM_SYNC_DOSYASI = os.path.join(SCRIPT_DIR, ".takvim_sync")
 NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832"
+FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db"
 
 YAYIN_SECENEKLERI = [
     "Bfü Haftalık Program",
@@ -1512,51 +1534,84 @@ def dinamik_gunleri_al():
     return sonuc
 
 
-
 def takvim_senkronize_et():
-    """Uzak sunucudaki (ntfy) en güncel takvim verisini kontrol eder ve yerel takvim.txt ile eşitler."""
-    son_zaman = 0
-    if os.path.exists(TAKVIM_SYNC_DOSYASI):
-        try:
-            with open(TAKVIM_SYNC_DOSYASI, "r", encoding="utf-8") as f:
-                c = f.read().strip()
-                if c.isdigit():
-                    son_zaman = int(c)
-        except Exception:
-            son_zaman = 0
+    """Bulut veritabanından (Firebase RTDB) ve ntfy üzerinden en güncel takvimi yerel takvim.txt ile eşitler."""
+    guncellendi = False
 
-    url = f"https://ntfy.sh/{NTFY_TOPIC_TAKVIM}/json?poll=1&since=all"
+    # 1. Birincil: Firebase Realtime Database
     try:
-        r = requests.get(url, timeout=3.0)
-        if r.status_code == 200 and r.text.strip():
-            en_yeni_mesaj = None
-            for line in r.text.strip().split("\n"):
-                if not line:
-                    continue
-                try:
-                    d = json.loads(line)
-                    if d.get("event") == "message":
-                        m_time = d.get("time", 0)
-                        if m_time >= son_zaman:
-                            en_yeni_mesaj = d
-                            son_zaman = m_time
-                except Exception:
-                    continue
-
-            if en_yeni_mesaj is not None:
-                icerik = en_yeni_mesaj.get("message", "")
-                if icerik == "__BOS_TAKVIM__":
-                    icerik = ""
+        url_fb = f"{FIREBASE_DB_URL}/takvim.json"
+        res_fb = requests.get(url_fb, timeout=2.5)
+        if res_fb.status_code == 200:
+            data = res_fb.json()
+            if isinstance(data, dict) and "satirlar" in data:
+                satirlar = data.get("satirlar") or []
+                icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
                 with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
                     f.write(icerik)
-                with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
-                    f.write(str(son_zaman))
+                guncellendi = True
     except Exception:
         pass
 
+    # 2. İkincil / Fallback: Ntfy
+    if not guncellendi:
+        son_zaman = 0
+        if os.path.exists(TAKVIM_SYNC_DOSYASI):
+            try:
+                with open(TAKVIM_SYNC_DOSYASI, "r", encoding="utf-8") as f:
+                    c = f.read().strip()
+                    if c.isdigit():
+                        son_zaman = int(c)
+            except Exception:
+                son_zaman = 0
 
-def takvim_uzaga_gonder(icerik):
-    """Güncellenmiş takvim.txt içeriğini ntfy üzerinden diğer kullanıcıya iletir."""
+        url = f"https://ntfy.sh/{NTFY_TOPIC_TAKVIM}/json?poll=1&since=all"
+        try:
+            r = requests.get(url, timeout=2.5)
+            if r.status_code == 200 and r.text.strip():
+                en_yeni_mesaj = None
+                for line in r.text.strip().split("\n"):
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                        if d.get("event") == "message":
+                            m_time = d.get("time", 0)
+                            if m_time >= son_zaman:
+                                en_yeni_mesaj = d
+                                son_zaman = m_time
+                    except Exception:
+                        continue
+
+                if en_yeni_mesaj is not None:
+                    icerik = en_yeni_mesaj.get("message", "")
+                    if icerik == "__BOS_TAKVIM__":
+                        icerik = ""
+                    with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(icerik)
+                    with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(str(son_zaman))
+        except Exception:
+            pass
+
+
+def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
+    """Güncellenmiş takvim.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""
+    satirlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+
+    # 1. Birincil: Firebase Realtime Database'e kaydet
+    try:
+        url_fb = f"{FIREBASE_DB_URL}/takvim.json"
+        payload_fb = {
+            "satirlar": satirlar,
+            "son_guncelleme": int(datetime.now(timezone.utc).timestamp()),
+            "guncelleyen": guncelleyen
+        }
+        requests.put(url_fb, json=payload_fb, timeout=3.5)
+    except Exception:
+        pass
+
+    # 2. İkincil: Ntfy bildirim kanalı
     try:
         mesaj = icerik if icerik.strip() else "__BOS_TAKVIM__"
         payload = {
@@ -1566,7 +1621,7 @@ def takvim_uzaga_gonder(icerik):
             "priority": 3,
             "tags": ["calendar"]
         }
-        r = requests.post("https://ntfy.sh", json=payload, timeout=4)
+        r = requests.post("https://ntfy.sh", json=payload, timeout=3.5)
         if r.status_code == 200:
             try:
                 res_data = r.json()
@@ -1927,68 +1982,109 @@ NTFY_TOPIC_CHAT = "tellal_chat_sync_u_y_8832"
 
 
 def chat_senkronize_et(aktif_kullanici_adi=None):
-    """Uzak sunucudaki (ntfy) en güncel chat verisini kontrol eder ve yerel chat.txt ile eşitler."""
-    son_zaman = 0
-    if os.path.exists(CHAT_SYNC_DOSYASI):
-        try:
-            with open(CHAT_SYNC_DOSYASI, "r", encoding="utf-8") as f:
-                c = f.read().strip()
-                if c.isdigit():
-                    son_zaman = int(c)
-        except Exception:
-            son_zaman = 0
+    """Bulut veritabanından (Firebase RTDB) ve ntfy üzerinden en güncel chat verisini yerel chat.txt ile eşitler."""
+    guncellendi = False
 
-    url = f"https://ntfy.sh/{NTFY_TOPIC_CHAT}/json?poll=1&since=all"
+    # 1. Birincil: Firebase Realtime Database
     try:
-        r = requests.get(url, timeout=3.0)
-        if r.status_code == 200 and r.text.strip():
-            en_yeni_mesaj = None
-            ilk_son_zaman = son_zaman
-            for line in r.text.strip().split("\n"):
-                if not line:
-                    continue
-                try:
-                    d = json.loads(line)
-                    if d.get("event") == "message":
-                        m_time = d.get("time", 0)
-                        if m_time >= son_zaman:
-                            en_yeni_mesaj = d
-                            son_zaman = m_time
-                except Exception:
-                    continue
+        url_fb = f"{FIREBASE_DB_URL}/chat.json"
+        res_fb = requests.get(url_fb, timeout=2.5)
+        if res_fb.status_code == 200:
+            data = res_fb.json()
+            if isinstance(data, dict) and "mesajlar" in data:
+                mesajlar = data.get("mesajlar") or []
+                yeni_icerik = "\n".join(mesajlar) + ("\n" if mesajlar else "")
 
-            if en_yeni_mesaj is not None:
-                icerik = en_yeni_mesaj.get("message", "")
-                if icerik == "__BOS_CHAT__":
-                    icerik = ""
+                # Eski içeriği oku
+                eski_icerik = ""
+                if os.path.exists(CHAT_DOSYASI):
+                    try:
+                        with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
+                            eski_icerik = f.read()
+                    except Exception:
+                        eski_icerik = ""
 
-                # macOS sesli bildirimi (yeni mesaj karşı taraftan geldiyse)
-                if platform.system() == "Darwin" and aktif_kullanici_adi and son_zaman > ilk_son_zaman and ilk_son_zaman > 0:
-                    satirlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
-                    if satirlar:
-                        son_satir = satirlar[-1]
-                        diger_kullanici = "Yiğit" if aktif_kullanici_adi == "Ufuk" else "Ufuk"
-                        if son_satir.startswith(f"{diger_kullanici}:"):
-                            try:
-                                temiz = son_satir.replace('"', "'")
-                                subprocess.run(
-                                    ["osascript", "-e", f'display notification "{temiz}" with title "Tellal Chat" sound name "Glass"'],
-                                    stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.DEVNULL
-                                )
-                            except Exception:
-                                pass
+                # macOS sesli bildirimi (karşı taraftan yeni mesaj geldiyse)
+                if platform.system() == "Darwin" and aktif_kullanici_adi and yeni_icerik != eski_icerik and mesajlar:
+                    son_satir = mesajlar[-1]
+                    diger_kullanici = "Yiğit" if aktif_kullanici_adi == "Ufuk" else "Ufuk"
+                    if son_satir.startswith(f"{diger_kullanici}:") or son_satir.startswith("3. Kullanıcı:"):
+                        try:
+                            temiz = son_satir.replace('"', "'")
+                            subprocess.run(
+                                ["osascript", "-e", f'display notification "{temiz}" with title "Tellal Chat" sound name "Glass"'],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL
+                            )
+                        except Exception:
+                            pass
 
                 with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
-                    f.write(icerik)
-                with open(CHAT_SYNC_DOSYASI, "w", encoding="utf-8") as f:
-                    f.write(str(son_zaman))
+                    f.write(yeni_icerik)
+                guncellendi = True
     except Exception:
         pass
 
+    # 2. İkincil / Fallback: Ntfy
+    if not guncellendi:
+        son_zaman = 0
+        if os.path.exists(CHAT_SYNC_DOSYASI):
+            try:
+                with open(CHAT_SYNC_DOSYASI, "r", encoding="utf-8") as f:
+                    c = f.read().strip()
+                    if c.isdigit():
+                        son_zaman = int(c)
+            except Exception:
+                son_zaman = 0
+
+        url = f"https://ntfy.sh/{NTFY_TOPIC_CHAT}/json?poll=1&since=all"
+        try:
+            r = requests.get(url, timeout=2.5)
+            if r.status_code == 200 and r.text.strip():
+                en_yeni_mesaj = None
+                ilk_son_zaman = son_zaman
+                for line in r.text.strip().split("\n"):
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                        if d.get("event") == "message":
+                            m_time = d.get("time", 0)
+                            if m_time >= son_zaman:
+                                en_yeni_mesaj = d
+                                son_zaman = m_time
+                    except Exception:
+                        continue
+
+                if en_yeni_mesaj is not None:
+                    icerik = en_yeni_mesaj.get("message", "")
+                    if icerik == "__BOS_CHAT__":
+                        icerik = ""
+
+                    with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(icerik)
+                    with open(CHAT_SYNC_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write(str(son_zaman))
+        except Exception:
+            pass
+
 
 def chat_uzaga_gonder(icerik):
-    """Güncellenmiş chat.txt içeriğini ntfy üzerinden diğer kullanıcıya iletir."""
+    """Güncellenmiş chat.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""
+    mesajlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+
+    # 1. Birincil: Firebase Realtime Database
+    try:
+        url_fb = f"{FIREBASE_DB_URL}/chat.json"
+        payload_fb = {
+            "mesajlar": mesajlar,
+            "son_guncelleme": int(datetime.now(timezone.utc).timestamp())
+        }
+        requests.put(url_fb, json=payload_fb, timeout=3.5)
+    except Exception:
+        pass
+
+    # 2. İkincil: Ntfy
     try:
         mesaj = icerik if icerik.strip() else "__BOS_CHAT__"
         payload = {
@@ -1998,7 +2094,7 @@ def chat_uzaga_gonder(icerik):
             "priority": 3,
             "tags": ["speech_balloon"]
         }
-        r = requests.post("https://ntfy.sh", json=payload, timeout=4)
+        r = requests.post("https://ntfy.sh", json=payload, timeout=3.5)
         if r.status_code == 200:
             try:
                 res_data = r.json()
