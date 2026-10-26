@@ -744,7 +744,8 @@ function renderMonthCalendar() {
           <div class="cal-event-pill gemini-match ${tipClass}" 
                title="${escapeHtml(m.aciklama)}"
                onclick="event.stopPropagation(); state.calendarMonth = ${prevMonthIdx}; state.calendarYear = ${prevMonthYear}; renderMonthCalendar();">
-            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
+            <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
+            <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
         `;
       }).join("");
@@ -802,7 +803,8 @@ function renderMonthCalendar() {
           <div class="cal-event-pill ${chClass} ${statusClass}" 
                title="${escapeHtml(b.saat)} - ${escapeHtml(b.yayinAdi)} (${escapeHtml(b.kanal)})"
                onclick="event.stopPropagation(); filterByCalendarBroadcast('${escapeHtml(b.yayinAdi)}')">
-            ${escapeHtml(b.saat)} ${escapeHtml(b.yayinAdi)}
+            <span class="pill-time">${escapeHtml(b.saat)}</span>
+            <span class="pill-title">${escapeHtml(b.yayinAdi)}</span>
           </div>
         `;
       }).join("");
@@ -818,7 +820,8 @@ function renderMonthCalendar() {
           <div class="cal-event-pill gemini-match ${tipClass}" 
                title="${escapeHtml(m.aciklama)} (Tıkla: Bu maç için canlı yayın ekle)"
                onclick="event.stopPropagation(); geminiMacaYayinEkle('${escapeHtml(m.takimlar)}', '${escapeHtml(m.saat)}', ${d}, ${state.calendarMonth})">
-            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
+            <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
+            <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
         `;
       }).join("");
@@ -857,7 +860,8 @@ function renderMonthCalendar() {
           <div class="cal-event-pill gemini-match ${tipClass}" 
                title="${escapeHtml(m.aciklama)}"
                onclick="event.stopPropagation(); state.calendarMonth = ${nextMonthIdx}; state.calendarYear = ${nextMonthYear}; renderMonthCalendar();">
-            ${icon} ${escapeHtml(m.saat)} ${escapeHtml(m.kisaAd || m.takimlar)}
+            <span class="pill-time">${icon} ${escapeHtml(m.saat)}</span>
+            <span class="pill-title">${escapeHtml(m.kisaAd || m.takimlar)}</span>
           </div>
         `;
       }).join("");
