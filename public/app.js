@@ -547,7 +547,6 @@ const KANAL_PROGRAMLARI = {
   "Uykusuz Tosba": [
     { ad: "Haftalık Program", saat: "20:00" },
     { ad: "Canlı Maç Sohbetleri", saat: "20:30" },
-    { ad: "Canlı Maç Sohbeti", saat: "20:30" },
     { ad: "Maç Sonu", saat: "22:45" },
     { ad: "Tek Maçtan Yatanlar", saat: "23:00" },
     { ad: "FC27 Kariyer", saat: "18:00" },

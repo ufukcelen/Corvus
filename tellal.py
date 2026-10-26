@@ -856,7 +856,7 @@ def uykusuz_tosba_menu():
     while True:
         console.print("\n")
         menu = """[bold cyan]1.[/bold cyan] Haftalık Program
-[bold cyan]2.[/bold cyan] Canlı Maç Sohbeti
+[bold cyan]2.[/bold cyan] Canlı Maç Sohbetleri
 [bold cyan]3.[/bold cyan] Maç Sonu
 [bold cyan]4.[/bold cyan] Tek Maçtan Yatanlar
 [bold cyan]5.[/bold cyan] FC27 Kariyer
@@ -1509,7 +1509,6 @@ FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebaseda
 YAYIN_SECENEKLERI = [
     "Haftalık Program",
     "Canlı Maç Sohbetleri",
-    "Canlı Maç Sohbeti",
     "Maç Sonu",
     "Tek Maçtan Yatanlar",
     "FC27 Kariyer",
@@ -1881,7 +1880,14 @@ def yayin_iptal_et():
 
 
 def yayin_sil():
-    """Kullanıcı 1 (Ufuk) için spesifik yayın silme veya tüm takvimi temizleme sihirbazı."""
+    """Takvimdeki bir yayını silme veya tüm listeyi temizleme sihirbazı."""
+    # Terminal girdi tamponunda kalan karakterleri temizle
+    if sys.stdin.isatty() and termios is not None:
+        try:
+            termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
+        except Exception:
+            pass
+
     yayinlar = takvim_oku()
     if not yayinlar:
         console.print("\n[dim yellow]Takvimde silinecek herhangi bir yayın bulunmuyor.[/dim yellow]\n")
@@ -1893,58 +1899,73 @@ def yayin_sil():
     panel_icerik = (
         "[bold cyan]Takvimdeki Mevcut Yayınlar:[/bold cyan]\n\n" +
         "\n".join(yayin_metinleri) + "\n\n"
-        "[dim]• Tek bir yayını silmek için numarasını girin (Örn: 2)\n"
+        "[dim]• Silmek istediğiniz yayının numarasını girin (Örn: 1 veya 2)\n"
+        "• Yayının adını da yazabilirsiniz (Örn: Haftalık, Memleket, Canlı Maç)\n"
         "• Tüm listeyi temizlemek için 'hepsi' yazın\n"
-        "• Geri dönmek / iptal etmek için 'g' yazın veya boş Enter yapın[/dim]"
+        "• Geri dönmek / iptal etmek için 'g' yazın[/dim]"
     )
     console.print(Panel(panel_icerik, title="[bold red]🗑️ Yayın Sil", expand=False))
 
-    girdi = Prompt.ask("[bold green]Seçiminiz (No / 'hepsi' / 'g')[/bold green]", default="").strip()
-    if not girdi or girdi.lower() in ("g", "geri", "q", "iptal", "exit"):
-        console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
-        return
-
-    # Hepsi seçeneği
-    if girdi.lower() in ("hepsi", "tumu", "tümü", "all"):
-        if Confirm.ask("[bold red]Tüm yayın takvimini tamamen silmek istediğinize emin misiniz?[/bold red]", default=False):
-            try:
-                with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
-                    f.write("")
-                takvim_uzaga_gonder("")
-                console.print("\n[bold green]✓ Yayın takvimi tamamen temizlendi.[/bold green]\n")
-            except Exception as e:
-                console.print(f"\n[bold red][HATA] Takvim temizlenirken hata: {e}[/bold red]\n")
-        else:
-            console.print("[dim]İşlem iptal edildi.[/dim]")
-        return
-
-    # Spesifik numara seçeneği
-    try:
-        silinecek_no = int(girdi)
-        if not (1 <= silinecek_no <= len(yayinlar)):
-            console.print(f"[bold red][HATA][/bold red] Lütfen 1 ile {len(yayinlar)} arasında bir numara girin.")
+    while True:
+        girdi = Prompt.ask("[bold green]Silinecek yayın seçimi (No / Ad / 'hepsi' / 'g')[/bold green]").strip()
+        if not girdi or girdi.lower() in ("g", "geri", "q", "iptal", "exit", "vazgec", "vazgeç"):
+            console.print("[dim yellow]İşlem iptal edildi, ana menüye dönülüyor.[/dim yellow]")
             return
-    except ValueError:
-        console.print("[bold red][HATA][/bold red] Lütfen geçerli bir numara veya 'hepsi' yazın.")
+
+        # Hepsi seçeneği
+        if girdi.lower() in ("hepsi", "tumu", "tümü", "all"):
+            onay = Prompt.ask("[bold red]Tüm yayın takvimini tamamen silmek istediğinize emin misiniz? (e/h)[/bold red]", choices=["e", "h", "evet", "hayır"], default="h")
+            if onay.lower() in ("e", "evet"):
+                try:
+                    with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                        f.write("")
+                    takvim_uzaga_gonder("")
+                    console.print("\n[bold green]✓ Yayın takvimi tamamen temizlendi ve buluta eşitlendi.[/bold green]\n")
+                except Exception as e:
+                    console.print(f"\n[bold red][HATA] Takvim temizlenirken hata: {e}[/bold red]\n")
+            else:
+                console.print("[dim]İşlem iptal edildi.[/dim]")
+            return
+
+        # Numara veya metin eşleme
+        silinecek_idx = None
+        match_no = re.search(r"\b(\d+)\b", girdi)
+        if match_no:
+            val = int(match_no.group(1))
+            if 1 <= val <= len(yayinlar):
+                silinecek_idx = val - 1
+
+        # Eğer sayı ile bulunamadıysa yayın adı eşleşmesi dene
+        if silinecek_idx is None:
+            g_low = girdi.lower()
+            for idx, y in enumerate(yayinlar):
+                if g_low in y.lower():
+                    silinecek_idx = idx
+                    break
+
+        if silinecek_idx is None:
+            console.print(f"[bold red][HATA][/bold red] Lütfen 1 ile {len(yayinlar)} arasında bir numara girin ya da 'hepsi' / 'g' yazın.")
+            continue
+
+        silinen_yayin = yayinlar.pop(silinecek_idx)
+        # Numaralandırmayı 1'den başlayarak yeniden düzenle
+        yeni_satirlar = []
+        for yeni_no, satir in enumerate(yayinlar, 1):
+            if "-)" in satir:
+                _, rest = satir.split("-)", 1)
+                yeni_satirlar.append(f"{yeni_no}-) {rest.strip()}")
+            else:
+                yeni_satirlar.append(f"{yeni_no}-) {satir.strip()}")
+
+        yeni_icerik = "\n".join(yeni_satirlar) + ("\n" if yeni_satirlar else "")
+        try:
+            with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                f.write(yeni_icerik)
+            takvim_uzaga_gonder(yeni_icerik)
+            console.print(f"\n[bold green]✓ Yayın takvimden silindi ve bulutla eşitlendi:[/bold green]\n  [bold red]- {silinen_yayin}[/bold red]\n")
+        except Exception as e:
+            console.print(f"\n[bold red][HATA] Takvim kaydedilemedi: {e}[/bold red]\n")
         return
-
-    silinen_yayin = yayinlar.pop(silinecek_no - 1)
-    yeni_satirlar = []
-    for yeni_no, satir in enumerate(yayinlar, 1):
-        if "-)" in satir:
-            _, rest = satir.split("-)", 1)
-            yeni_satirlar.append(f"{yeni_no}-) {rest.strip()}")
-        else:
-            yeni_satirlar.append(f"{yeni_no}-) {satir.strip()}")
-
-    yeni_icerik = "\n".join(yeni_satirlar) + ("\n" if yeni_satirlar else "")
-    try:
-        with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
-            f.write(yeni_icerik)
-        takvim_uzaga_gonder(yeni_icerik)
-        console.print(f"\n[bold green]✓ {silinecek_no} numaralı yayın takvimden silindi ve liste yeniden numaralandırıldı.[/bold green]\n")
-    except Exception as e:
-        console.print(f"\n[bold red][HATA] Takvim kaydedilemedi: {e}[/bold red]\n")
 
 
 def duyurulari_yapildi_isaretle():
@@ -2392,6 +2413,10 @@ def ana_menu_secim_al(prompt_metni, gecerli_secimler):
                 sys.stdout.write(ch)
                 sys.stdout.flush()
     finally:
+        try:
+            termios.tcflush(fd, termios.TCIFLUSH)
+        except Exception:
+            pass
         termios.tcsetattr(fd, termios.TCSADRAIN, eski_ayarlar)
 
 
@@ -2414,10 +2439,13 @@ def ana_menu_paneli_olustur(kullanici_id):
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Chat 💬
 [bold cyan]4.[/bold cyan] Duyurular Yapıldı ✅
-[bold cyan]5.[/bold cyan] Çıkış
+[bold cyan]5.[/bold cyan] Yayın Ekle... 📅
+[bold cyan]6.[/bold cyan] Yayın İptal... ❌
+[bold cyan]7.[/bold cyan] Yayın Sil... 🗑️
+[bold cyan]8.[/bold cyan] Çıkış
 
 [dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
-        gecerli_secimler = ["1", "2", "3", "4", "5", "k", "r"]
+        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
 
     return Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False), gecerli_secimler
 
@@ -2514,7 +2542,7 @@ def ana_menu(kullanici_id, kullanici_adi):
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
                 bildirimleri_kontrol_et(kullanici_id)
         else:
-            if ana_secim == "5":
+            if ana_secim == "8":
                 uygulamadan_cik()
                 break
             elif ana_secim == "1":
@@ -2525,9 +2553,16 @@ def ana_menu(kullanici_id, kullanici_adi):
                 chat_mesaj_gonder(kullanici_id, kullanici_adi)
             elif ana_secim == "4":
                 duyurulari_yapildi_isaretle()
+            elif ana_secim == "5":
+                takvime_yayin_ekle()
+            elif ana_secim == "6":
+                yayin_iptal_et()
+            elif ana_secim == "7":
+                yayin_sil()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
+                bildirimleri_kontrol_et(kullanici_id)
                 bildirimleri_kontrol_et(kullanici_id)
 
 
