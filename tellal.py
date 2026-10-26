@@ -31,8 +31,14 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.1.0"
+SURUM = "1.1.1"
 SURUM_NOTLARI = {
+    "1.1.1": [
+        "Masaüstü 'Tellal.app' başlatıcısına otomatik odaklanma (activate) eklendi; Terminal artık doğrudan öne geliyor.",
+        "Uykusuz Tosba menüsüne 'Tosba Lojistik (ETS2)' bölümü (yapım aşamasında) eklendi.",
+        "Ana menüden 'Çıkış' yapıldığında Terminal penceresinin otomatik kapanması sağlandı.",
+        "Ana menü başlığındaki simge boşluğu düzenlendi (▶️  Youtube Duyuru Sistemi).",
+    ],
     "1.1.0": [
         "Masaüstünde tek tıkla çalışan 'Tellal.app' başlatıcısı ve özel uygulama logosu eklendi.",
         "Tüm render ve SEO çıktıları masaüstünde gün/ay adıyla otomatik klasörlenir hale getirildi ({gün} {ay}_{program_adi}).",
@@ -340,16 +346,32 @@ def masaustu_app_olustur():
     app_yolu = os.path.join(MASAUSTU, "Tellal.app")
     icns_kaynak = os.path.join(SCRIPT_DIR, "tellal.icns")
     png_kaynak = os.path.join(SCRIPT_DIR, "tellalicon.png")
+    main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
+
+    komut_argumanlari = [
+        "-e", 'tell application "Terminal"',
+        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
+        "-e", 'activate',
+        "-e", 'end tell'
+    ]
 
     yeni_olusturuldu = False
     if not os.path.exists(app_yolu):
         try:
-            script = f'tell application "Terminal" to do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"'
-            subprocess.run(["osacompile", "-o", app_yolu, "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["osacompile", "-o", app_yolu] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             yeni_olusturuldu = True
         except Exception:
             return
     else:
+        # Uygulama zaten var: sadece script'in Terminal'i öne getirdiğinden (activate) emin ol
+        try:
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v2")
+            if not os.path.exists(marker) and os.path.exists(main_scpt):
+                subprocess.run(["osacompile", "-o", main_scpt] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                with open(marker, "w") as f:
+                    f.write("1")
+        except Exception:
+            pass
         return  # uygulama zaten var: ikon işlemini tekrarlama (her açılışı yavaşlatır)
 
     # İkon dosyasını ve özel Finder rozetini ayarla (sadece ilk oluşturmada)
@@ -368,6 +390,9 @@ def masaustu_app_olustur():
         if os.path.exists(png_kaynak) and subprocess.run(["xcode-select", "-p"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v2"), "w") as f:
+            f.write("1")
     except Exception:
         pass
 
@@ -630,12 +655,13 @@ def uykusuz_tosba_menu():
 [bold cyan]3.[/bold cyan] Maç Sonu
 [bold cyan]4.[/bold cyan] Tek Maçtan Yatanlar
 [bold cyan]5.[/bold cyan] FC27 Kariyer
-[bold cyan]6.[/bold cyan] Geri"""
+[bold cyan]6.[/bold cyan] Tosba Lojistik (ETS2)
+[bold cyan]7.[/bold cyan] Geri"""
         console.print(Panel(menu, title=f"[bold yellow]🐢 Uykusuz Tosba Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
     
-        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6"])
+        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6", "7"])
 
-        if secim == "6":
+        if secim == "7":
             break
 
         try:
@@ -787,6 +813,9 @@ def uykusuz_tosba_menu():
                 tek_mac_yatanlar_yap()
             elif secim == "5":
                 fc27_kariyer_yap()
+            elif secim == "6":
+                console.print(Panel("[bold yellow]🚧 Yapım aşamasında...[/bold yellow]\n\n[dim]Tosba Lojistik (ETS2) duyuru otomasyonu yakında eklenecek.[/dim]", title="[bold cyan]Tosba Lojistik (ETS2)", expand=False))
+                Prompt.ask("\n[bold green]Geri dönmek için Enter'a basın[/bold green]", default="")
 
         except Exception as e:
             console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
@@ -1212,12 +1241,21 @@ def ana_menu():
         menu = """[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
 [bold cyan]3.[/bold cyan] Çıkış"""
-        console.print(Panel(menu, title=f"[bold yellow]▶️ Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
+        console.print(Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
         ana_secim = Prompt.ask("[bold green]Sistem seçin[/bold green]", choices=["1", "2", "3"])
 
         if ana_secim == "3":
             console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
+            if platform.system() == "Darwin":
+                try:
+                    subprocess.run(
+                        ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
             break
         elif ana_secim == "1":
             uykusuz_tosba_menu()
