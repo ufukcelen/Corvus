@@ -77,7 +77,7 @@ async function initCalendarData() {
     try {
       state.yayinlar = JSON.parse(localData);
       // Yayın takviminde kalmış olabilecek eski Gemini maç satırlarını ayıkla
-      state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") && y.includes("Canlı Maç Sohbeti")));
+      state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("Canlı Maç Sohbeti") || y.includes("Futbol Maçı:")));
     } catch (e) {
       state.yayinlar = [];
     }
@@ -447,7 +447,7 @@ async function senkronizeEtUzak(bildirimVer = true) {
           gelenSatirlar = [];
         } else if (Array.isArray(data.satirlar)) {
           // Yayın takviminde sadece gerçek yayınlar kalır, Gemini AI maçları normal takvim gridine aittir
-          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") && s.includes("Canlı Maç Sohbeti")));
+          gelenSatirlar = data.satirlar.filter(s => s && s.trim() && !(s.includes("Gemini AI") || s.includes("Canlı Maç Sohbeti") || s.includes("Futbol Maçı:")));
         }
 
         // Sadece ve sadece veri gerçekten değiştiyse DOM'u güncelle
@@ -1081,7 +1081,7 @@ async function runGeminiAiMatchScanner(isManual = false) {
 
   // 2. Eğer daha önceden state.yayinlar'a yanlışlıkla girmiş maç satırları varsa yayın takviminden tamamen sil
   const oncekiUzunluk = state.yayinlar.length;
-  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") && y.includes("Canlı Maç Sohbeti")));
+  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("Canlı Maç Sohbeti") || y.includes("Futbol Maçı:")));
   if (state.yayinlar.length !== oncekiUzunluk) {
     kaydetYerel();
     renderCalendar();
@@ -1107,26 +1107,9 @@ async function runGeminiAiMatchScanner(isManual = false) {
     console.warn("Gemini matches bulut kaydı hatası:", e);
   }
 
-  // 5. Canlı chate bilgilendirme mesajı (eğer manuel tıklandıysa)
+  // 5. Toast göster (Chate veya yayın takvimine ASLA yazılmaz)
   if (isManual) {
-    const chatMsg = `Gemini AI: ⚽ Milli Takım, FB-GS derbisi, BJK ve TS maçları tarandı ve normal takvim günlerine event olarak eklendi!`;
-    try {
-      chatState.mesajlar.push(chatMsg);
-      renderChatMessages();
-      await fetch(`${FIREBASE_DB_URL}/chat.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mesajlar: chatState.mesajlar,
-          son_guncelleme: Math.floor(Date.now() / 1000),
-          guncelleyen: "Gemini AI"
-        })
-      });
-    } catch (e) {
-      console.warn("Gemini AI chat log hatası:", e);
-    }
-
-    showToast("✨ Gemini AI: Maçlar yayın takvimine değil, doğrudan normal takvim gridine event olarak işlendi! ⚽", "success");
+    showToast("✨ Gemini AI: Maçlar doğrudan normal takvim gridine event olarak işlendi! ⚽", "success");
   }
 }
 
@@ -1235,7 +1218,7 @@ async function fetchChatData() {
       const data = await res.json();
       let rawList = [];
       if (data && Array.isArray(data.mesajlar)) {
-        rawList = data.mesajlar.filter(m => m && m.trim());
+        rawList = data.mesajlar.filter(m => m && m.trim() && !m.includes("Gemini AI"));
       }
       const rawStr = JSON.stringify(rawList);
       if (rawStr !== chatState.lastRaw) {

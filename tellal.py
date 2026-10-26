@@ -37,8 +37,14 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.5"
+SURUM = "1.4.6"
 SURUM_NOTLARI = {
+    "1.4.6": [
+        "Tellal.app macOS İzin Hatası (-1743) Giderildi: 'System Events' gereksinimi kaldırılarak Terminal doğrudan açılabilecek hale getirildi.",
+        "Yayın Takvimi İzolasyonu: Gemini AI maç etkinlikleri yayın takviminden (.app ve takvim.txt) tamamen arındırıldı; yalnız web aylık takvim hücrelerinde gösterilir.",
+        "Ekip Sohbeti (Chat) Temizliği: Canlı chat alanından yapay zeka bildirimleri kaldırıldı; sohbet yalnızca ekip arkadaşları arasındaki iletişime tahsis edildi.",
+        "Veri Akışı & Bütünlük Koruması: .app ve Web arasındaki Firebase / Ntfy senkronizasyonu çift yönlü olarak sıfır hata prensibiyle güçlendirildi.",
+    ],
     "1.4.5": [
         "Gemini AI Maç Takip Asistanı: Türkiye A Milli Takımı ve 4 Büyüklerin (GS, FB, BJK, TS) derbi ve lig maçları otomatik taranarak takvime eklendi.",
         "Normal Takvim ve Yayın Takvimi Ayrımı: Gemini AI maçları yayın takvimini ve masaüstü uygulamasını kirletmez; doğrudan web takvim gridinde gösterilir.",
@@ -387,22 +393,12 @@ def masaustu_app_olustur():
     main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
 
     komut_argumanlari = [
-        "-e", 'tell application "System Events" to set isRunning to (name of processes) contains "Terminal"',
         "-e", 'tell application "Terminal"',
         "-e", 'activate',
-        "-e", 'if not isRunning then',
-        "-e", 'delay 0.3',
-        "-e", 'if (count of windows) > 0 and busy of window 1 is false then',
+        "-e", 'if (count of windows) > 0 and busy of window 1 is false and (history of tab 1 of window 1 contains "Last login" or history of tab 1 of window 1 is "") then',
         "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py" in window 1',
         "-e", 'else',
         "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
-        "-e", 'end if',
-        "-e", 'else',
-        "-e", 'if (count of windows) is 1 and busy of window 1 is false and (history of tab 1 of window 1 contains "Last login" or history of tab 1 of window 1 is "") then',
-        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py" in window 1',
-        "-e", 'else',
-        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 tellal.py"',
-        "-e", 'end if',
         "-e", 'end if',
         "-e", 'end tell'
     ]
@@ -415,9 +411,9 @@ def masaustu_app_olustur():
         except Exception:
             return
     else:
-        # Uygulama zaten var: sadece script'in güncel tek pencere mantığını kullandığından emin ol
+        # Uygulama zaten var: System Events yetki hatası (-1743) içermeyen güncel script'i zorla derle
         try:
-            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v3")
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v5")
             if not os.path.exists(marker) and os.path.exists(main_scpt):
                 subprocess.run(["osacompile", "-o", main_scpt] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 with open(marker, "w") as f:
@@ -443,7 +439,7 @@ def masaustu_app_olustur():
             swift_cmd = f'import Cocoa; if let img = NSImage(contentsOfFile: "{png_kaynak}") {{ NSWorkspace.shared.setIcon(img, forFile: "{app_yolu}", options: []) }}'
             subprocess.run(["swift", "-e", swift_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v3"), "w") as f:
+        with open(os.path.join(app_yolu, "Contents", "Resources", ".script_v5"), "w") as f:
             f.write("1")
     except Exception:
         pass
@@ -1541,6 +1537,29 @@ def dinamik_gunleri_al():
     return sonuc
 
 
+def takvim_filtrele_ve_duzenle(satirlar):
+    """Gemini AI maçlarını yayın takviminden (.app ve takvim.txt) tamamen ayıklar ve numaralandırmayı düzeltir."""
+    temiz = []
+    for s in satirlar:
+        if not s or not s.strip():
+            continue
+        s_clean = s.strip()
+        # Gemini AI maçlarını ve yapay maç satırlarını ayıkla
+        if "Gemini AI" in s_clean or ("Canlı Maç" in s_clean and ("⚽" in s_clean or "Derbi" in s_clean or "Sohbeti" in s_clean)):
+            continue
+        temiz.append(s_clean)
+
+    # Numaralandırmayı 1'den başlayarak yeniden düzenle
+    duzenli = []
+    for idx, s in enumerate(temiz, 1):
+        if "-)" in s:
+            parcalar = s.split("-)", 1)
+            duzenli.append(f"{idx}-) {parcalar[1].strip()}")
+        else:
+            duzenli.append(f"{idx}-) {s}")
+    return duzenli
+
+
 def takvim_senkronize_et():
     """Bulut veritabanından (Firebase RTDB) ve ntfy üzerinden en güncel takvimi yerel takvim.txt ile eşitler."""
     guncellendi = False
@@ -1555,7 +1574,8 @@ def takvim_senkronize_et():
                 if data.get("bos_mu"):
                     satirlar = []
                 else:
-                    satirlar = [s for s in (data.get("satirlar") or []) if s and s.strip()]
+                    raw_satirlar = [s for s in (data.get("satirlar") or []) if s and s.strip()]
+                    satirlar = takvim_filtrele_ve_duzenle(raw_satirlar)
                 icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
                 with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
                     f.write(icerik)
@@ -1594,9 +1614,12 @@ def takvim_senkronize_et():
                         continue
 
                 if en_yeni_mesaj is not None:
-                    icerik = en_yeni_mesaj.get("message", "")
-                    if icerik == "__BOS_TAKVIM__":
-                        icerik = ""
+                    raw_icerik = en_yeni_mesaj.get("message", "")
+                    if raw_icerik == "__BOS_TAKVIM__":
+                        satirlar = []
+                    else:
+                        satirlar = takvim_filtrele_ve_duzenle(raw_icerik.splitlines())
+                    icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
                     with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
                         f.write(icerik)
                     with open(TAKVIM_SYNC_DOSYASI, "w", encoding="utf-8") as f:
@@ -1607,7 +1630,8 @@ def takvim_senkronize_et():
 
 def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
     """Güncellenmiş takvim.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""
-    satirlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+    satirlar = takvim_filtrele_ve_duzenle([s.strip() for s in icerik.strip().split("\n") if s.strip()])
+    temiz_icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
 
     # 1. Birincil: Firebase Realtime Database'e kaydet (bos_mu bayrağı boş listeyi garantiye alır)
     try:
@@ -1624,7 +1648,7 @@ def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
 
     # 2. İkincil: Ntfy bildirim kanalı
     try:
-        mesaj = icerik if icerik.strip() else "__BOS_TAKVIM__"
+        mesaj = temiz_icerik if temiz_icerik.strip() else "__BOS_TAKVIM__"
         payload = {
             "topic": NTFY_TOPIC_TAKVIM,
             "title": "Tellal Takvim Güncellemesi",
@@ -1654,7 +1678,13 @@ def takvim_oku():
     try:
         with open(TAKVIM_DOSYASI, "r", encoding="utf-8") as f:
             satirlar = [s.strip() for s in f if s.strip()]
-        return satirlar
+        temiz = takvim_filtrele_ve_duzenle(satirlar)
+        if len(temiz) != len(satirlar):
+            icerik = "\n".join(temiz) + ("\n" if temiz else "")
+            with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                f.write(icerik)
+            takvim_uzaga_gonder(icerik, guncelleyen="Sistem (Temizlik)")
+        return temiz
     except Exception:
         return []
 
@@ -1991,6 +2021,23 @@ CHAT_DOSYASI = os.path.join(SCRIPT_DIR, "chat.txt")
 CHAT_SYNC_DOSYASI = os.path.join(SCRIPT_DIR, ".chat_sync")
 NTFY_TOPIC_CHAT = "tellal_chat_sync_u_y_8832"
 
+def chat_filtrele(mesajlar):
+    """Chat mesajlarından bot/yapay zeka bildirimlerini ayıklar; yalnızca gerçek ekip mesajlarını tutar."""
+    if not mesajlar:
+        return []
+    temiz = []
+    for m in mesajlar:
+        if not m or not isinstance(m, str):
+            continue
+        m_str = m.strip()
+        if not m_str:
+            continue
+        # Gemini AI bot bildirimlerini engelle
+        if "Gemini AI" in m_str or m_str.startswith("Gemini AI:") or ("🤖" in m_str and "Gemini" in m_str):
+            continue
+        temiz.append(m_str)
+    return temiz
+
 
 def chat_senkronize_et(aktif_kullanici_adi=None):
     """Bulut veritabanından (Firebase RTDB) ve ntfy üzerinden en güncel chat verisini yerel chat.txt ile eşitler."""
@@ -2003,7 +2050,8 @@ def chat_senkronize_et(aktif_kullanici_adi=None):
         if res_fb.status_code == 200:
             data = res_fb.json()
             if isinstance(data, dict) and "mesajlar" in data:
-                mesajlar = data.get("mesajlar") or []
+                raw_mesajlar = data.get("mesajlar") or []
+                mesajlar = chat_filtrele(raw_mesajlar)
                 yeni_icerik = "\n".join(mesajlar) + ("\n" if mesajlar else "")
 
                 # Eski içeriği oku
@@ -2071,6 +2119,8 @@ def chat_senkronize_et(aktif_kullanici_adi=None):
                     icerik = en_yeni_mesaj.get("message", "")
                     if icerik == "__BOS_CHAT__":
                         icerik = ""
+                    temiz_satirlar = chat_filtrele(icerik.split("\n"))
+                    icerik = "\n".join(temiz_satirlar) + ("\n" if temiz_satirlar else "")
 
                     with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
                         f.write(icerik)
@@ -2082,7 +2132,9 @@ def chat_senkronize_et(aktif_kullanici_adi=None):
 
 def chat_uzaga_gonder(icerik):
     """Güncellenmiş chat.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""
-    mesajlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+    ham_mesajlar = [s.strip() for s in icerik.strip().split("\n") if s.strip()]
+    mesajlar = chat_filtrele(ham_mesajlar)
+    temiz_icerik = "\n".join(mesajlar) + ("\n" if mesajlar else "")
 
     # 1. Birincil: Firebase Realtime Database
     try:
@@ -2097,7 +2149,7 @@ def chat_uzaga_gonder(icerik):
 
     # 2. İkincil: Ntfy
     try:
-        mesaj = icerik if icerik.strip() else "__BOS_CHAT__"
+        mesaj = temiz_icerik if temiz_icerik.strip() else "__BOS_CHAT__"
         payload = {
             "topic": NTFY_TOPIC_CHAT,
             "title": "Tellal Chat Güncellemesi",
@@ -2126,9 +2178,35 @@ def chat_oku(aktif_kullanici_adi=None):
         return []
     try:
         with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
-            return [satir.strip() for satir in f if satir.strip()]
+            satirlar = [satir.strip() for satir in f if satir.strip()]
+            return chat_filtrele(satirlar)
     except Exception:
         return []
+
+
+def veri_temizligi_yap():
+    """Program açılışında takvim.txt ve chat.txt dosyalarını Gemini AI yapay satırlarından arındırır ve bulutla eşitler."""
+    try:
+        if os.path.exists(TAKVIM_DOSYASI):
+            with open(TAKVIM_DOSYASI, "r", encoding="utf-8") as f:
+                satirlar = f.read().splitlines()
+            temiz = takvim_filtrele_ve_duzenle(satirlar)
+            if len(temiz) != len(satirlar):
+                icerik = "\n".join(temiz) + ("\n" if temiz else "")
+                with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(icerik)
+                takvim_uzaga_gonder(icerik, guncelleyen="Sistem (Temizlik)")
+        if os.path.exists(CHAT_DOSYASI):
+            with open(CHAT_DOSYASI, "r", encoding="utf-8") as f:
+                c_satirlar = f.read().splitlines()
+            c_temiz = chat_filtrele(c_satirlar)
+            if len(c_temiz) != len(c_satirlar):
+                c_icerik = "\n".join(c_temiz) + ("\n" if c_temiz else "")
+                with open(CHAT_DOSYASI, "w", encoding="utf-8") as f:
+                    f.write(c_icerik)
+                chat_uzaga_gonder(c_icerik)
+    except Exception:
+        pass
 
 
 def formatli_chat_satiri(satir):
@@ -2455,6 +2533,7 @@ def ana_menu(kullanici_id, kullanici_adi):
 
 if __name__ == "__main__":
     masaustu_app_olustur()
+    veri_temizligi_yap()
     yenilikleri_goster()
     k_id, k_ad = kullanici_belirle()
     console.print(Panel(f"[bold green]✨ Hoş geldin {k_ad}![/bold green]", expand=False))
