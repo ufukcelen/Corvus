@@ -413,29 +413,20 @@ def masaustu_app_olustur():
     if not os.path.exists(png_kaynak):
         png_kaynak = os.path.join(SCRIPT_DIR, "tellalicon.png")
     main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
-
-    komut_argumanlari = [
-        "-e", 'tell application "Terminal"',
-        "-e", 'activate',
-        "-e", 'if (count of windows) > 0 and busy of window 1 is false and (history of tab 1 of window 1 contains "Last login" or history of tab 1 of window 1 is "") then',
-        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 corvus.py" in window 1',
-        "-e", 'else',
-        "-e", f'do script "cd \\"{SCRIPT_DIR}\\" && python3 corvus.py"',
-        "-e", 'end if',
-        "-e", 'end tell'
-    ]
+    bq = "\\" + '"'
+    sc_kodu = f'tell application "Terminal"\n    activate\n    do script "cd {bq}{SCRIPT_DIR}{bq} && python3 corvus.py"\nend tell\n'
 
     yeni_olusturuldu = False
     if not os.path.exists(app_yolu):
         try:
-            subprocess.run(["osacompile", "-o", app_yolu] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["osacompile", "-o", app_yolu], input=sc_kodu, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             yeni_olusturuldu = True
         except Exception:
             return
     else:
         # Uygulama zaten var: Script içindeki çalışma dizini (SCRIPT_DIR) değişmişse veya eski sürümse otomatik yeniden derle
         try:
-            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v5")
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v6")
             kayitli_yol = ""
             if os.path.exists(marker):
                 try:
@@ -444,7 +435,7 @@ def masaustu_app_olustur():
                 except Exception:
                     kayitli_yol = ""
             if kayitli_yol != SCRIPT_DIR and os.path.exists(main_scpt):
-                subprocess.run(["osacompile", "-o", main_scpt] + komut_argumanlari, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run(["osacompile", "-o", main_scpt], input=sc_kodu, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 with open(marker, "w", encoding="utf-8") as f:
                     f.write(SCRIPT_DIR)
         except Exception:
