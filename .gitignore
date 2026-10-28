@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 *Auto-Save*/
 *.tellal_indir
+*.corvus_indir
 *Logs/
 old.py
 .son_surum

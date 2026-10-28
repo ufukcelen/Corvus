@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Google Takvim ("Yayın Takvimi") Otomasyon Senkronizasyon Modülü
-Tellal YouTube Duyuru Otomasyonu
+Corvus YouTube Duyuru Otomasyonu
 
 Kullanıcının Google Takvim'deki "Yayın Takvimi" takvimiyle (macOS Calendar CalDAV / Google sync köprüsü üzerinden)
 iki yönlü ve anlık senkronizasyon sağlar.
@@ -188,14 +188,14 @@ def google_takvim_senkronize_et(satirlar=None):
     hedef_yayinlar = [parse_broadcast_line(s, idx) for idx, s in enumerate(satirlar)]
     hedef_id_set = {y["sync_id"] for y in hedef_yayinlar}
 
-    # 1. Mevcut Tellal etkinliklerini tara ve hedef listede olmayanları sil
+    # 1. Mevcut Corvus / Tellal etkinliklerini tara ve hedef listede olmayanları sil
     sc_get_existing = f'''
     tell application "Calendar"
         set targetCal to first calendar whose name is "{CALENDAR_NAME}"
         set resList to {{}}
         tell targetCal
-            set tellalEvts to (every event whose description contains "[Tellal-ID:")
-            repeat with evt in tellalEvts
+            set corvusEvts to (every event whose description contains "[Corvus-ID:" or description contains "[Tellal-ID:")
+            repeat with evt in corvusEvts
                 set d to description of evt
                 set end of resList to (uid of evt & ":::" & d)
             end repeat
@@ -214,7 +214,7 @@ def google_takvim_senkronize_et(satirlar=None):
         for p in parts:
             if ":::" in p:
                 uid, desc = p.split(":::", 1)
-                m = re.search(r"\[Tellal-ID:\s*([a-f0-9]+)\]", desc)
+                m = re.search(r"\[(?:Corvus|Tellal)-ID:\s*([a-f0-9]+)\]", desc)
                 if m:
                     evt_sync_id = m.group(1)
                     if evt_sync_id not in hedef_id_set:
@@ -261,7 +261,7 @@ def google_takvim_senkronize_et(satirlar=None):
         if item["bilgi"]:
             desc_lines.append(f"Ek Not / Karşılaşma: {item['bilgi']}")
         desc_lines.append("Panel: https://tellal-otomasyon.web.app")
-        desc_lines.append(f"[Tellal-ID: {item['sync_id']}]")
+        desc_lines.append(f"[Corvus-ID: {item['sync_id']}]")
         description = "\\n".join(desc_lines)
 
         start_str = format_applescript_date(start_dt)
@@ -311,7 +311,7 @@ def start_daemon_listener(poll_interval=4.0):
     Firebase Realtime Database takvim tablosunu ve yerel takvim.txt dosyasını
     sürekli izleyerek Google Takvim'i arka planda otomatik güncel tutar.
     """
-    print(f"🚀 Tellal Google Takvim Senkronizasyon Ajanı başlatıldı...")
+    print(f"🚀 Corvus Google Takvim Senkronizasyon Ajanı başlatıldı...")
     print(f"📅 Hedef Takvim: '{CALENDAR_NAME}' (Google ID: {GOOGLE_CALENDAR_ID})")
     print(f"⏱️ Kontrol sıklığı: {poll_interval} saniye")
 

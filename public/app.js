@@ -1,16 +1,16 @@
 /**
- * Tellal Cloud Web Portal - JavaScript Logic
+ * Corvus Cloud Web Portal - JavaScript Logic
  * Firebase Hosting & Ntfy Realtime Sync Desteği
- * Sürüm: v1.4.7
+ * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.4.7";
+const APP_VERSION = "1.4.8";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
-const STORAGE_KEY_TAKVIM = "tellal_web_takvim";
-const STORAGE_KEY_USER = "tellal_web_user";
-const STORAGE_KEY_AUTH = "tellal_auth_session";
+const STORAGE_KEY_TAKVIM = "corvus_web_takvim";
+const STORAGE_KEY_USER = "corvus_web_user";
+const STORAGE_KEY_AUTH = "corvus_auth_session";
 
 // Rol Tanımları
 const ROLES = {
@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // 1. Oturum & Rol Yetkilendirme Yönetimi
 function initAuth() {
-  const savedAuth = localStorage.getItem(STORAGE_KEY_AUTH);
+  const savedAuth = localStorage.getItem(STORAGE_KEY_AUTH) || localStorage.getItem("tellal_auth_session");
   if (savedAuth) {
     try {
       const parsed = JSON.parse(savedAuth);
@@ -193,7 +193,7 @@ function initUser() {
 
 // 2. Takvim Verisi Yükleme & Parse Etme
 async function initCalendarData() {
-  const localData = localStorage.getItem(STORAGE_KEY_TAKVIM);
+  const localData = localStorage.getItem(STORAGE_KEY_TAKVIM) || localStorage.getItem("tellal_web_takvim");
   if (localData) {
     try {
       state.yayinlar = JSON.parse(localData);
@@ -205,7 +205,7 @@ async function initCalendarData() {
   }
 
   // Gemini AI Maçlarını localStorage'dan veya varsayılan fikstürden yükle (Normal Takvim gridi için)
-  const localMatches = localStorage.getItem("tellal_gemini_matches");
+  const localMatches = localStorage.getItem("corvus_gemini_matches") || localStorage.getItem("tellal_gemini_matches");
   if (localMatches) {
     try {
       state.geminiMatches = JSON.parse(localMatches);
@@ -217,7 +217,7 @@ async function initCalendarData() {
   }
 
   // Karşılaşma filtre tercihlerini localStorage'dan yükle
-  const localSports = localStorage.getItem("tellal_selected_sports");
+  const localSports = localStorage.getItem("corvus_selected_sports") || localStorage.getItem("tellal_selected_sports");
   if (localSports) {
     try {
       const parsedSports = JSON.parse(localSports);
@@ -457,9 +457,9 @@ function yeniYayinKaydet(e) {
   form.reset();
   guncelleProgramListesi();
 
-  // Ntfy üzerinden buluta ve masaüstü tellal.py'ye aktar!
+  // Ntfy üzerinden buluta ve masaüstü Corvus'a aktar!
   yayinlariBulutaGonder(`${state.currentUser} webden yeni yayın ekledi: ${program}`);
-  showToast(`✓ "${program}" yayını başarıyla takvime eklendi ve Tellal Cloud'a senkronize edildi!`, "success");
+  showToast(`✓ "${program}" yayını başarıyla takvime eklendi ve Corvus Cloud'a senkronize edildi!`, "success");
 }
 
 // 6. Yayın Durumu Değiştirme (Tamamla / İptal)
@@ -683,7 +683,7 @@ async function yayinlariBulutaGonder(ozetMesaj = "") {
   // 2. İkincil: Ntfy Kanalına Yedek Bildirim Gönder
   const payload = {
     topic: NTFY_TOPIC_TAKVIM,
-    title: "Tellal Takvim Güncellemesi (Web)",
+    title: "Corvus Takvim Güncellemesi (Web)",
     message: icerik || "__BOS_TAKVIM__",
     priority: 3,
     tags: ["calendar", "globe_with_meridians"]
@@ -2457,13 +2457,13 @@ async function sendChatMessage(e) {
       })
     });
 
-    // 2. İkincil: Ntfy Kanalına Bildir (tellal.py'de ses çalması ve senkronize olması için)
+    // 2. İkincil: Ntfy Kanalına Bildir (Corvus'ta ses çalması ve senkronize olması için)
     await fetch("https://ntfy.sh", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         topic: "tellal_chat_sync_u_y_8832",
-        title: "Tellal Chat Güncellemesi",
+        title: "Corvus Chat Güncellemesi",
         message: updatedMessages.join("\n"),
         priority: 3,
         tags: ["speech_balloon"]
