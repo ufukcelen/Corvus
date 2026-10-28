@@ -149,6 +149,12 @@ def run_applescript(script):
     return res.returncode == 0, res.stdout.strip(), res.stderr.strip()
 
 
+def is_calendar_running():
+    """Calendar uygulamasının halihazırda açık olup olmadığını kontrol eder."""
+    ok, out, _ = run_applescript('tell application "System Events" to return ((name of processes) contains "Calendar")')
+    return ok and out.strip().lower() == "true"
+
+
 def check_calendar_exists():
     """macOS Calendar uygulamasında 'Yayın Takvimi' olup olmadığını doğrular."""
     sc = f'''
@@ -171,6 +177,8 @@ def google_takvim_senkronize_et(satirlar=None):
     Verilen yayın satırlarını veya takvim.txt / Firebase içeriğini
     'Yayın Takvimi' Google Takvimi ile tam olarak eşitler.
     """
+    was_running = is_calendar_running()
+
     if not check_calendar_exists():
         print(f"[UYARI] '{CALENDAR_NAME}' takvimi macOS Takvim uygulamasında bulunamadı.")
         return False, "Takvim bulunamadı"
@@ -301,6 +309,10 @@ def google_takvim_senkronize_et(satirlar=None):
             '''
             run_applescript(sc_create)
             eklenen_sayisi += 1
+
+    if not was_running:
+        # Takvim daha önce açık değildi, arka planda sessizce kapat ki ekranda pencere kalmasın
+        run_applescript('tell application "Calendar" to quit')
 
     rapor = f"Yayın Takvimi Google Senkronizasyonu: +{eklenen_sayisi} yeni, ~{guncellenen_sayisi} güncellendi, -{silinen_sayisi} silindi."
     return True, rapor
