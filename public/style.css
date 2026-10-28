@@ -1917,3 +1917,57 @@ body {
   font-size: 0.76rem;
   color: var(--text-dim);
 }
+
+/* Alt Bilgi (Footer & Copyright) */
+.app-footer {
+  margin-top: 48px;
+  padding: 24px 20px;
+  border-top: 1px solid var(--border-glass);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.footer-copyright {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.footer-copyright strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.footer-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.footer-divider {
+  opacity: 0.4;
+}

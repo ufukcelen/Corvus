@@ -1,7 +1,10 @@
 /**
  * Tellal Cloud Web Portal - JavaScript Logic
  * Firebase Hosting & Ntfy Realtime Sync Desteği
+ * Sürüm: v1.4.7
  */
+
+const APP_VERSION = "1.4.7";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
