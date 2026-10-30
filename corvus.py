@@ -414,8 +414,19 @@ def masaustu_app_olustur():
     if not os.path.exists(png_kaynak):
         png_kaynak = os.path.join(SCRIPT_DIR, "tellalicon.png")
     main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
-    bq = "\\" + '"'
-    sc_kodu = f'tell application "Terminal"\n    activate\n    do script "cd {bq}{SCRIPT_DIR}{bq} && python3 corvus.py"\nend tell\n'
+    cmd = 'cd "' + SCRIPT_DIR + '" && python3 corvus.py'
+    quoted_cmd = json.dumps(cmd)
+    sc_kodu = f'''tell application "Terminal"
+    if (count of (every window whose visible is true)) > 0 then
+        if not (busy of tab 1 of window 1) then
+            do script {quoted_cmd} in window 1
+            activate
+            return
+        end if
+    end if
+    do script {quoted_cmd}
+    activate
+end tell'''
 
     yeni_olusturuldu = False
     if not os.path.exists(app_yolu):
@@ -427,7 +438,7 @@ def masaustu_app_olustur():
     else:
         # Uygulama zaten var: Script içindeki çalışma dizini (SCRIPT_DIR) değişmişse veya eski sürümse otomatik yeniden derle
         try:
-            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v6")
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v7")
             kayitli_yol = ""
             if os.path.exists(marker):
                 try:
