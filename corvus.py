@@ -1558,7 +1558,7 @@ def canli_mac_thumbnail_olustur(mac_verisi):
     ev_logo_yolu = f"/tmp/ev_logo_{mac_verisi['teams']['home']['id']}.png"
     dep_logo_yolu = f"/tmp/dep_logo_{mac_verisi['teams']['away']['id']}.png"
 
-    def smart_object_logo_hazirla(url, hedef_yol):
+    def smart_object_logo_hazirla(url, hedef_yol, is_ev_sahibi=True):
         try:
             from PIL import Image
             r = requests.get(url, timeout=12)
@@ -1569,10 +1569,18 @@ def canli_mac_thumbnail_olustur(mac_verisi):
             if bbox:
                 img = img.crop(bbox)
             
-            # Smart Object 700x700 tuvaline orantılı ve tam dolduracak şekilde büyüt
             w, h = img.size
             if w > 0 and h > 0:
-                ratio = min(680 / w, 680 / h)
+                aspect = w / h
+                # Dairesel veya kareye yakın logolar (Konya, FB, vb.) tuvali çok fazla kaplayıp devasa
+                # görünmemesi için 580px; dikey/yıldızlı armalar (GS vb.) ise arma gövdesinin
+                # kaybolmaması için 660px olarak hedeflenir.
+                if 0.80 <= aspect <= 1.25:
+                    target_dim = 580
+                else:
+                    target_dim = 660
+
+                ratio = min(target_dim / w, target_dim / h)
                 new_w = max(1, int(w * ratio))
                 new_h = max(1, int(h * ratio))
                 img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
@@ -1591,9 +1599,9 @@ def canli_mac_thumbnail_olustur(mac_verisi):
 
     with console.status("[bold cyan]Takım logoları indiriliyor ve tuvale yerleştiriliyor...[/bold cyan]"):
         if ev_logo_url:
-            smart_object_logo_hazirla(ev_logo_url, ev_logo_yolu)
+            smart_object_logo_hazirla(ev_logo_url, ev_logo_yolu, is_ev_sahibi=True)
         if dep_logo_url:
-            smart_object_logo_hazirla(dep_logo_url, dep_logo_yolu)
+            smart_object_logo_hazirla(dep_logo_url, dep_logo_yolu, is_ev_sahibi=False)
 
     # Yedek kontrol: Eğer logolar indirilemediyse BASE_DIR'e bak
     if not os.path.exists(ev_logo_yolu):
