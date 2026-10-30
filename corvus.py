@@ -1647,6 +1647,21 @@ try {{
     replaceSmartObject('evtakim', '{ev_logo_yolu}');
     replaceSmartObject('deptakim', '{dep_logo_yolu}');
 
+    // 2.1. İki logonun alt tabanını pikseli pikseline aynı hizaya getir (Sıfır hata)
+    try {{
+        var evLayer = doc.artLayers.getByName('evtakim');
+        var depLayer = doc.artLayers.getByName('deptakim');
+        var targetBottom = 476;
+        var evShift = targetBottom - evLayer.bounds[3].value;
+        var depShift = targetBottom - depLayer.bounds[3].value;
+        if (Math.abs(evShift) > 0.1) {{
+            evLayer.translate(0, evShift);
+        }}
+        if (Math.abs(depShift) > 0.1) {{
+            depLayer.translate(0, depShift);
+        }}
+    }} catch(e) {{}}
+
     // 3. JPG Olarak Kaydet (Maksimum Kalite: 12)
     var jpgFile = new File('{cikis_yolu}');
     var jpgOpts = new JPEGSaveOptions();
