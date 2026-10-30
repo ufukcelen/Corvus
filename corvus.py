@@ -1572,13 +1572,13 @@ def canli_mac_thumbnail_olustur(mac_verisi):
             w, h = img.size
             if w > 0 and h > 0:
                 aspect = w / h
-                # PSD Smart Object tuvali 300x300 olduğundan:
-                # Dairesel veya kareye yakın logolar (Konya, FB, vb.): 255px
-                # Dikey/yıldızlı armalar (GS vb.): 285px
-                if 0.80 <= aspect <= 1.25:
-                    target_dim = 255
+                # Optik Hacim (Optical Weight):
+                # Dairesel veya kareye yakın logolar (Konya, FB, City vb.) kütle olarak çok dolgun olduğu için 225px
+                # Dar, dikey veya yıldızlı logolar (GS, BJK vb.) gövdesi ezilmesin diye 280px
+                if 0.82 <= aspect <= 1.20:
+                    target_dim = 225
                 else:
-                    target_dim = 285
+                    target_dim = 280
 
                 ratio = min(target_dim / w, target_dim / h)
                 new_w = max(1, int(w * ratio))
@@ -1588,9 +1588,9 @@ def canli_mac_thumbnail_olustur(mac_verisi):
                 img_resized = img
 
             canvas = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+            # Optik merkezleme: Tuvalin hem yatay hem dikey tam merkezine yerleştir
             x = (300 - img_resized.width) // 2
-            # PSD'de iki katmanın alt tabanı eşitlendiği için logoları tabana yaslıyoruz
-            y = 300 - img_resized.height
+            y = (300 - img_resized.height) // 2
             canvas.paste(img_resized, (x, y), img_resized)
             canvas.save(hedef_yol, format="PNG")
             return True
@@ -1647,13 +1647,21 @@ try {{
     replaceSmartObject('evtakim', '{ev_logo_yolu}');
     replaceSmartObject('deptakim', '{dep_logo_yolu}');
 
-    // 2.1. İki logonun alt tabanını pikseli pikseline aynı hizaya getir (Sıfır hata)
+    // 2.1. İki logonun optik merkezini (Center Y) aynı yatay eksene kilitle (TV Yayın Standardı)
     try {{
         var evLayer = doc.artLayers.getByName('evtakim');
         var depLayer = doc.artLayers.getByName('deptakim');
-        var targetBottom = 476;
-        var evShift = targetBottom - evLayer.bounds[3].value;
-        var depShift = targetBottom - depLayer.bounds[3].value;
+
+        var evB = evLayer.bounds;
+        var depB = depLayer.bounds;
+
+        var evCenterY = (evB[1].value + evB[3].value) / 2;
+        var depCenterY = (depB[1].value + depB[3].value) / 2;
+
+        var targetCenterY = 340;
+        var evShift = targetCenterY - evCenterY;
+        var depShift = targetCenterY - depCenterY;
+
         if (Math.abs(evShift) > 0.1) {{
             evLayer.translate(0, evShift);
         }}
