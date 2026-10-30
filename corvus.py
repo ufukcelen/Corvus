@@ -421,7 +421,7 @@ def masaustu_app_olustur():
     if not os.path.exists(png_kaynak):
         png_kaynak = os.path.join(SCRIPT_DIR, "tellalicon.png")
     main_scpt = os.path.join(app_yolu, "Contents", "Resources", "Scripts", "main.scpt")
-    cmd = 'cd "' + SCRIPT_DIR + '" && python3 corvus.py'
+    cmd = 'cd "' + SCRIPT_DIR + '" && python3 corvus.py; exit'
     quoted_cmd = json.dumps(cmd)
     sc_kodu = f'''tell application "Terminal"
     if (count of (every window whose visible is true)) > 0 then
@@ -445,7 +445,7 @@ end tell'''
     else:
         # Uygulama zaten var: Script içindeki çalışma dizini (SCRIPT_DIR) değişmişse veya eski sürümse otomatik yeniden derle
         try:
-            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v7")
+            marker = os.path.join(app_yolu, "Contents", "Resources", ".script_v8")
             kayitli_yol = ""
             if os.path.exists(marker):
                 try:
@@ -3265,12 +3265,14 @@ def chat_paneli_olustur(kullanici_adi):
 
 
 def uygulamadan_cik():
-    """Programdan çıkış yapar ve gerekirse macOS Terminal penceresini kapatır."""
+    """Programdan çıkış yapar ve macOS Terminal penceresini otomatik kapatır."""
     console.print("[bold yellow]Çıkış yapılıyor...[/bold yellow]")
     if platform.system() == "Darwin":
         try:
-            subprocess.run(
-                ["osascript", "-e", 'tell application "Terminal" to close front window saving no'],
+            # Arka planda gecikmeli olarak pencereyi kapatma komutu veriyoruz,
+            # böylece Python süreci tamamen sonlanmış olur ve Terminal engelsiz kapanır.
+            subprocess.Popen(
+                ["osascript", "-e", "delay 0.2", "-e", 'tell application "Terminal" to close front window saving no'],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
