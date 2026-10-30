@@ -757,6 +757,9 @@ def haftalik_program_yap():
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
+    if Confirm.ask("[bold yellow]Photoshop ile Haftalık Program Thumbnail (Kapak Görseli) oluşturulsun mu?[/bold yellow]", default=True):
+        haftalik_thumbnail_olustur()
+
 
 def canli_mac_veya_sonu_yap(mac_sonu=False):
     """Canlı Maç Sohbeti veya Maç Sonu duyuru otomasyonunu yürütür."""
@@ -870,6 +873,9 @@ def canli_mac_veya_sonu_yap(mac_sonu=False):
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
+    if Confirm.ask("[bold yellow]Photoshop ile Canlı Maç Thumbnail (Kapak Görseli) oluşturulsun mu?[/bold yellow]", default=True):
+        canli_mac_thumbnail_olustur(mac_verisi)
+
 
 def uykusuz_tosba_menu():
     """Uykusuz Tosba alt programları için interaktif menü."""
@@ -878,15 +884,16 @@ def uykusuz_tosba_menu():
         menu = """[bold cyan]1.[/bold cyan] Haftalık Program
 [bold cyan]2.[/bold cyan] Canlı Maç Sohbetleri
 [bold cyan]3.[/bold cyan] Maç Sonu
-[bold cyan]4.[/bold cyan] Tek Maçtan Yatanlar
-[bold cyan]5.[/bold cyan] FC27 Kariyer
-[bold cyan]6.[/bold cyan] Tosba Lojistik (ETS2)
-[bold cyan]7.[/bold cyan] Geri"""
+[bold cyan]4.[/bold cyan] Canlı Maç Thumbnail Oluştur (Photoshop) 🎨
+[bold cyan]5.[/bold cyan] Tek Maçtan Yatanlar
+[bold cyan]6.[/bold cyan] FC27 Kariyer
+[bold cyan]7.[/bold cyan] Tosba Lojistik (ETS2)
+[bold cyan]8.[/bold cyan] Geri"""
         console.print(Panel(menu, title=f"[bold yellow]🐢 Uykusuz Tosba Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6", "7"])
+        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6", "7", "8"])
 
-        if secim == "7":
+        if secim == "8":
             break
 
         try:
@@ -897,10 +904,12 @@ def uykusuz_tosba_menu():
             elif secim == "3":
                 canli_mac_veya_sonu_yap(mac_sonu=True)
             elif secim == "4":
-                tek_mac_yatanlar_yap()
+                canli_mac_thumbnail_olustur_sihirbazi()
             elif secim == "5":
-                fc27_kariyer_yap()
+                tek_mac_yatanlar_yap()
             elif secim == "6":
+                fc27_kariyer_yap()
+            elif secim == "7":
                 yapim_asamasinda_goster("Tosba Lojistik (ETS2)")
         except Exception as e:
             console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
@@ -1436,6 +1445,331 @@ try {{
                 os.remove(temp_jsx)
             except Exception:
                 pass
+
+
+def haftalik_thumbnail_olustur():
+    """
+    Photoshop 2026'da masaüstündeki haftalık.psd dosyasını açar ve
+    hiçbir katmanı değiştirmeden maksimum kalitede haftalik_program.jpg olarak kaydeder.
+    """
+    psd_yolu = os.path.join(MASAUSTU, "haftalık.psd")
+    if not os.path.exists(psd_yolu):
+        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'haftalık.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return False
+
+    cikis_yolu = os.path.join(MASAUSTU, "haftalik_program.jpg")
+
+    jsx_script = f"""#target photoshop
+app.displayDialogs = DialogModes.NO;
+
+try {{
+    var doc = app.open(new File('{psd_yolu}'));
+
+    var jpgFile = new File('{cikis_yolu}');
+    var jpgOpts = new JPEGSaveOptions();
+    jpgOpts.quality = 12;
+    jpgOpts.embedColorProfile = true;
+    doc.saveAs(jpgFile, jpgOpts, true, Extension.LOWERCASE);
+
+    doc.close(SaveOptions.DONOTSAVECHANGES);
+    'SUCCESS';
+}} catch (e) {{
+    'ERROR: ' + e.message;
+}}
+"""
+
+    temp_jsx = "/tmp/corvus_haftalik_thumb.jsx"
+    try:
+        with open(temp_jsx, "w", encoding="utf-8") as f:
+            f.write(jsx_script)
+
+        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+            do javascript (file "{temp_jsx}")
+        end tell'''
+
+        with console.status("[bold cyan]Photoshop 2026 çalışıyor... (haftalık.psd dışa aktarılıyor)[/bold cyan]"):
+            proc = subprocess.run(
+                ["osascript", "-e", applescript_cmd],
+                capture_output=True,
+                text=True
+            )
+
+        sonuc = proc.stdout.strip()
+        if "ERROR" in sonuc or proc.returncode != 0:
+            hata_mesaji = sonuc or proc.stderr.strip()
+            console.print(f"\n[bold red][Photoshop Hatası][/bold red] {hata_mesaji}\n")
+            return False
+        else:
+            ses_cal()
+            console.print()
+            bilgi_paneli = (
+                f"[bold green]✓ Haftalık Program Thumbnail Başarıyla Oluşturuldu![/bold green]\n\n"
+                f"[bold cyan]Şablon    :[/bold cyan] haftalık.psd\n"
+                f"[bold cyan]Kayıt Yolu:[/bold cyan] [bold white]{cikis_yolu}[/bold white]"
+            )
+            console.print(Panel(bilgi_paneli, title="🎉 İşlem Tamamlandı", expand=False))
+
+            if Confirm.ask("[bold yellow]Görseli açmak ister misiniz?[/bold yellow]", default=True):
+                subprocess.run(["open", cikis_yolu])
+            return True
+    except Exception as e:
+        console.print(f"\n[bold red][HATA][/bold red] İşlem başarısız: {e}\n")
+        return False
+    finally:
+        if os.path.exists(temp_jsx):
+            try:
+                os.remove(temp_jsx)
+            except Exception:
+                pass
+
+
+def canli_mac_thumbnail_olustur(mac_verisi):
+    """
+    Seçilen karşılaşma verisine göre Photoshop 2026'da canlimac.psd dosyasını günceller:
+    - Turnuva katmanını (superlig, cl, europa, conf, uluslar) gösterir, diğerlerini gizler.
+    - Ev sahibi ve deplasman logolarını evtakim ve deptakim Smart Object'lerine yerleştirir.
+    - Masaüstüne canlimacyatay.jpg olarak kaydeder.
+    """
+    psd_yolu = os.path.join(MASAUSTU, "canlimac.psd")
+    if not os.path.exists(psd_yolu):
+        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'canlimac.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return False
+
+    lig_id = mac_verisi['league']['id']
+    # 2: Şampiyonlar Ligi -> cl
+    # 3: Europa Ligi -> europa
+    # 848: Konferans Ligi -> conf
+    # 203: Süper Lig -> superlig
+    # 5: Uluslar Ligi -> uluslar
+    turnuva_map = {
+        2: "cl",
+        3: "europa",
+        848: "conf",
+        203: "superlig",
+        5: "uluslar"
+    }
+    aktif_turnuva = turnuva_map.get(lig_id, "superlig")
+
+    ev_logo_url = mac_verisi['teams']['home'].get('logo')
+    dep_logo_url = mac_verisi['teams']['away'].get('logo')
+
+    ev_logo_yolu = os.path.join(BASE_DIR, "evTakım.png")
+    dep_logo_yolu = os.path.join(BASE_DIR, "depTakım.png")
+
+    # Logoların mevcut olduğundan emin ol, yoksa indir
+    if not os.path.exists(ev_logo_yolu) and ev_logo_url:
+        logo_hazirla(ev_logo_url, ev_logo_yolu, "Ev sahibi")
+    if not os.path.exists(dep_logo_yolu) and dep_logo_url:
+        logo_hazirla(dep_logo_url, dep_logo_yolu, "Deplasman")
+
+    cikis_yolu = os.path.join(MASAUSTU, "canlimacyatay.jpg")
+
+    jsx_script = f"""#target photoshop
+app.displayDialogs = DialogModes.NO;
+
+function selectLayerByName(name) {{
+    var desc = new ActionDescriptor();
+    var ref = new ActionReference();
+    ref.putName(charIDToTypeID('Lyr '), name);
+    desc.putReference(charIDToTypeID('null'), ref);
+    desc.putBoolean(charIDToTypeID('MkVs'), false);
+    executeAction(charIDToTypeID('slct'), desc, DialogModes.NO);
+}}
+
+function replaceSmartObject(layerName, filePath) {{
+    selectLayerByName(layerName);
+    var desc = new ActionDescriptor();
+    desc.putPath(charIDToTypeID('null'), new File(filePath));
+    executeAction(stringIDToTypeID('placedLayerReplaceContents'), desc, DialogModes.NO);
+}}
+
+try {{
+    var doc = app.open(new File('{psd_yolu}'));
+
+    // 1. Turnuva katmanlarını ayarla (Sadece eşleşen görünür, diğerleri gizli)
+    var turnuvalar = ['superlig', 'cl', 'europa', 'conf', 'uluslar'];
+    for (var i = 0; i < turnuvalar.length; i++) {{
+        try {{
+            selectLayerByName(turnuvalar[i]);
+            doc.activeLayer.visible = (turnuvalar[i] === '{aktif_turnuva}');
+        }} catch(e) {{}}
+    }}
+
+    // 2. Akıllı nesneleri güncelle (oran bozulmadan)
+    replaceSmartObject('evtakim', '{ev_logo_yolu}');
+    replaceSmartObject('deptakim', '{dep_logo_yolu}');
+
+    // 3. JPG Olarak Kaydet (Maksimum Kalite: 12)
+    var jpgFile = new File('{cikis_yolu}');
+    var jpgOpts = new JPEGSaveOptions();
+    jpgOpts.quality = 12;
+    jpgOpts.embedColorProfile = true;
+    doc.saveAs(jpgFile, jpgOpts, true, Extension.LOWERCASE);
+
+    // 4. Orijinal PSD'yi kaydetmeden kapat
+    doc.close(SaveOptions.DONOTSAVECHANGES);
+    'SUCCESS';
+}} catch (e) {{
+    'ERROR: ' + e.message;
+}}
+"""
+
+    temp_jsx = "/tmp/corvus_canlimac_thumb.jsx"
+    try:
+        with open(temp_jsx, "w", encoding="utf-8") as f:
+            f.write(jsx_script)
+
+        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+            do javascript (file "{temp_jsx}")
+        end tell'''
+
+        ev_ad = mac_verisi['teams']['home']['name']
+        dep_ad = mac_verisi['teams']['away']['name']
+        lig_ad = mac_verisi['league']['name']
+
+        with console.status(f"[bold cyan]Photoshop 2026 çalışıyor... ({ev_ad} vs {dep_ad} | {lig_ad})[/bold cyan]"):
+            proc = subprocess.run(
+                ["osascript", "-e", applescript_cmd],
+                capture_output=True,
+                text=True
+            )
+
+        sonuc = proc.stdout.strip()
+        if "ERROR" in sonuc or proc.returncode != 0:
+            hata_mesaji = sonuc or proc.stderr.strip()
+            console.print(f"\n[bold red][Photoshop Hatası][/bold red] {hata_mesaji}\n")
+            return False
+        else:
+            ses_cal()
+            console.print()
+            bilgi_paneli = (
+                f"[bold green]✓ Canlı Maç Thumbnail Başarıyla Oluşturuldu![/bold green]\n\n"
+                f"[bold cyan]Karşılaşma :[/bold cyan] [bold yellow]{ev_ad}[/bold yellow] vs [bold yellow]{dep_ad}[/bold yellow]\n"
+                f"[bold cyan]Turnuva    :[/bold cyan] {lig_ad} [dim]({aktif_turnuva})[/dim]\n"
+                f"[bold cyan]Kayıt Yolu :[/bold cyan] [bold white]{cikis_yolu}[/bold white]"
+            )
+            console.print(Panel(bilgi_paneli, title="🎉 İşlem Tamamlandı", expand=False))
+
+            if Confirm.ask("[bold yellow]Görseli açmak ister misiniz?[/bold yellow]", default=True):
+                subprocess.run(["open", cikis_yolu])
+            return True
+    except Exception as e:
+        console.print(f"\n[bold red][HATA][/bold red] İşlem başarısız: {e}\n")
+        return False
+    finally:
+        if os.path.exists(temp_jsx):
+            try:
+                os.remove(temp_jsx)
+            except Exception:
+                pass
+
+
+def canli_mac_thumbnail_olustur_sihirbazi():
+    """Kullanıcıya maç seçtirerek Canlı Maç Thumbnail (canlimacyatay.jpg) oluşturan bağımsız sihirbaz."""
+    while True:
+        tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
+        girdi_temiz = tarih_girdisi.strip().lower()
+        if girdi_temiz in ("", BUGUN_YAZISI.lower(), "bugün", "bugun"):
+            tarih = datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m-%d")
+            break
+        elif re.fullmatch(r"\d{4}-\d{2}-\d{2}", tarih_girdisi.strip()):
+            tarih = tarih_girdisi.strip()
+            break
+        else:
+            console.print("[bold yellow][UYARI][/bold yellow] Tarihi YYYY-MM-DD biçiminde gir (Örn: 2026-10-25) veya Enter'a bas.")
+
+    sezon_yili = sezon_hesapla(tarih)
+    sadece_hepsi = int(sezon_yili) not in UCRETSIZ_SEZONLAR
+
+    if sadece_hepsi:
+        lig_menu = "[6] Hepsi (Bu 5 Lig)"
+        secenekler, varsayilan = ["6"], "6"
+    else:
+        lig_menu = """[1] Şampiyonlar Ligi  [2] Europa Ligi  [3] Konferans Ligi
+[4] Süper Lig        [5] Uluslar Ligi [6] Hepsi (Bu 5 Lig)"""
+        secenekler, varsayilan = ["1", "2", "3", "4", "5", "6"], None
+
+    console.print(Panel(lig_menu, title="Turnuva Seçimi", expand=False))
+    turnuva_secim = Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler, default=varsayilan) if varsayilan else Prompt.ask("[bold green]Turnuva seçin[/bold green]", choices=secenekler)
+
+    maclar = []
+    with console.status("[bold cyan]API'den maçlar çekiliyor...[/bold cyan]"):
+        if turnuva_secim == "6":
+            tum = api_maclar({"date": tarih, "timezone": "Europe/Istanbul"})
+            maclar = [m for m in tum if m['league']['id'] in HEPSI_LIG_IDLERI]
+        else:
+            lig_map = {"1": 2, "2": 3, "3": 848, "4": 203, "5": 5}
+            maclar = api_maclar({"date": tarih, "league": lig_map[turnuva_secim], "season": sezon_yili, "timezone": "Europe/Istanbul"})
+
+    if not maclar:
+        console.print(f"[bold red][UYARI][/bold red] {tarih} tarihinde maç bulunamadı.")
+        return
+
+    table = Table(title=f"[bold magenta]--- {tarih} Tarihli Maçlar ---[/bold magenta]")
+    table.add_column("Sıra", justify="right", style="cyan", no_wrap=True)
+    table.add_column("ID", style="magenta")
+    table.add_column("Ev Sahibi", style="green")
+    table.add_column("Deplasman", style="red")
+    table.add_column("Saat", style="yellow")
+    table.add_column("Lig", style="blue")
+
+    sira_to_id = {}
+    id_list = []
+
+    for idx, m in enumerate(maclar, start=1):
+        f_id = str(m['fixture']['id'])
+        sira_to_id[str(idx)] = f_id
+        id_list.append(f_id)
+
+        utc_time = datetime.strptime(m['fixture']['date'], "%Y-%m-%dT%H:%M:%S%z")
+        tr_time = utc_time.astimezone(timezone(timedelta(hours=3)))
+        mac_saati_str = tr_time.strftime("%H:%M")
+
+        table.add_row(str(idx), f_id, m['teams']['home']['name'], m['teams']['away']['name'], mac_saati_str, m['league']['name'])
+
+    console.print(table)
+
+    girdi = Prompt.ask("[bold cyan]Sıra No veya Maç ID'si girin[/bold cyan]").strip()
+    secilen_id = sira_to_id.get(girdi, girdi)
+    mac_verisi = next((m for m in maclar if str(m['fixture']['id']) == secilen_id), None)
+
+    if not mac_verisi:
+        console.print("[bold red][UYARI][/bold red] Maç bulunamadı.")
+        return
+
+    canli_mac_thumbnail_olustur(mac_verisi)
+
+
+def thumbnail_ana_menusu():
+    """Tüm programlar için Photoshop Thumbnail Üretim Merkezi."""
+    while True:
+        console.print("\n")
+        menu = """[bold cyan]1.[/bold cyan] Filtresiz Memleket Havası (memleketYatay.psd)
+[bold cyan]2.[/bold cyan] Canlı Maç Sohbetleri (canlimac.psd)
+[bold cyan]3.[/bold cyan] Haftalık Program (haftalık.psd)
+[bold cyan]4.[/bold cyan] Geri"""
+        console.print(Panel(menu, title=f"[bold yellow]🎨 Photoshop Thumbnail Merkezi [cyan]v{SURUM}[/cyan]", expand=False))
+
+        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4"])
+        if secim == "4":
+            break
+        elif secim == "1":
+            try:
+                memleket_thumbnail_olustur_sihirbazi()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
+        elif secim == "2":
+            try:
+                canli_mac_thumbnail_olustur_sihirbazi()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
+        elif secim == "3":
+            try:
+                haftalik_thumbnail_olustur()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
 
 
 def radio_mocas_menu():
@@ -2763,7 +3097,7 @@ def ana_menu(kullanici_id, kullanici_adi):
             elif ana_secim == "7":
                 yayin_sil()
             elif ana_secim in ("8", "t"):
-                memleket_thumbnail_olustur_sihirbazi()
+                thumbnail_ana_menusu()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
@@ -2787,7 +3121,7 @@ def ana_menu(kullanici_id, kullanici_adi):
             elif ana_secim == "7":
                 yayin_sil()
             elif ana_secim in ("8", "t"):
-                memleket_thumbnail_olustur_sihirbazi()
+                thumbnail_ana_menusu()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
