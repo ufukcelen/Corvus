@@ -1555,14 +1555,37 @@ def canli_mac_thumbnail_olustur(mac_verisi):
     ev_logo_url = mac_verisi['teams']['home'].get('logo')
     dep_logo_url = mac_verisi['teams']['away'].get('logo')
 
-    ev_logo_yolu = os.path.join(BASE_DIR, "evTakım.png")
-    dep_logo_yolu = os.path.join(BASE_DIR, "depTakım.png")
+    ev_logo_yolu = f"/tmp/ev_logo_{mac_verisi['teams']['home']['id']}.png"
+    dep_logo_yolu = f"/tmp/dep_logo_{mac_verisi['teams']['away']['id']}.png"
 
-    # Logoların mevcut olduğundan emin ol, yoksa indir
-    if not os.path.exists(ev_logo_yolu) and ev_logo_url:
-        logo_hazirla(ev_logo_url, ev_logo_yolu, "Ev sahibi")
-    if not os.path.exists(dep_logo_yolu) and dep_logo_url:
-        logo_hazirla(dep_logo_url, dep_logo_yolu, "Deplasman")
+    def smart_object_logo_hazirla(url, hedef_yol):
+        try:
+            from PIL import Image
+            r = requests.get(url, timeout=12)
+            r.raise_for_status()
+            img = Image.open(io.BytesIO(r.content)).convert("RGBA")
+            canvas = Image.new("RGBA", (700, 700), (0, 0, 0, 0))
+            img.thumbnail((620, 620), Image.Resampling.LANCZOS)
+            x = (700 - img.width) // 2
+            y = (700 - img.height) // 2
+            canvas.paste(img, (x, y), img)
+            canvas.save(hedef_yol, format="PNG")
+            return True
+        except Exception as e:
+            console.print(f"[bold yellow][UYARI][/bold yellow] Logo hazırlanamadı ({e}).")
+            return False
+
+    with console.status("[bold cyan]Takım logoları indiriliyor ve tuvale yerleştiriliyor...[/bold cyan]"):
+        if ev_logo_url:
+            smart_object_logo_hazirla(ev_logo_url, ev_logo_yolu)
+        if dep_logo_url:
+            smart_object_logo_hazirla(dep_logo_url, dep_logo_yolu)
+
+    # Yedek kontrol: Eğer logolar indirilemediyse BASE_DIR'e bak
+    if not os.path.exists(ev_logo_yolu):
+        ev_logo_yolu = os.path.join(BASE_DIR, "evTakım.png")
+    if not os.path.exists(dep_logo_yolu):
+        dep_logo_yolu = os.path.join(BASE_DIR, "depTakım.png")
 
     cikis_yolu = os.path.join(MASAUSTU, "canlimacyatay.jpg")
 
