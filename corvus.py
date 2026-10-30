@@ -1399,15 +1399,61 @@ def psd_sablonu_temin_et(psd_adi):
         return None
 
 
+def photoshop_app_adi_al():
+    """
+    Sistemde yüklü olan Adobe Photoshop sürümünü otomatik tespit eder.
+    (Örn: Adobe Photoshop 2026, Adobe Photoshop 2025, Adobe Photoshop 2024, Adobe Photoshop)
+    """
+    # 1. /Applications dizini altındaki uygulamaları ara
+    bulunanlar = glob.glob("/Applications/Adobe Photoshop*/*.app") + glob.glob("/Applications/Adobe Photoshop*.app")
+    for app_yolu in sorted(bulunanlar, reverse=True):
+        ad = os.path.splitext(os.path.basename(app_yolu))[0]
+        if "uninstall" not in ad.lower():
+            return ad
+
+    # 2. Spotlight (mdfind) ile sistem genelinde ara
+    try:
+        proc = subprocess.run(
+            ["mdfind", "kMDItemCFBundleIdentifier == 'com.adobe.Photoshop*'"],
+            capture_output=True, text=True, timeout=3
+        )
+        for line in proc.stdout.splitlines():
+            if line.endswith(".app"):
+                ad = os.path.splitext(os.path.basename(line))[0]
+                if "uninstall" not in ad.lower():
+                    return ad
+    except Exception:
+        pass
+
+    # 3. AppleScript ile aktif olan veya kayıtlı Photoshop adını sorgula
+    try:
+        res = subprocess.run(
+            ["osascript", "-e", 'tell application id "com.adobe.Photoshop" to return name'],
+            capture_output=True, text=True, timeout=3
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+
+    return None
+
+
 def memleket_thumbnail_olustur_sihirbazi():
     """
-    Adobe Photoshop 2026 otomasyonu:
+    Adobe Photoshop otomasyonu:
     - memleketYatay.psd dosyasını açar.
     - 'bolumno' text katmanına bölüm numarasını (#...) yazar.
     - 'renk1' ve 'renk2' Hue/Saturation katmanlarına rastgele (-180, 180) Hue uygular.
     - Masaüstüne memleket{bolum_no}.jpg olarak maksimum kalitede kaydeder.
     - Orijinal PSD'yi kaydetmeden kapatır.
     """
+    ps_app = photoshop_app_adi_al()
+    if not ps_app:
+        console.print("\n[bold red][HATA][/bold red] Sistemde Adobe Photoshop uygulaması bulunamadı!\n[yellow]Lütfen bilgisayarınızda Adobe Photoshop'un yüklü olduğundan emin olun.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return
+
     psd_yolu = psd_sablonu_temin_et("memleketYatay.psd")
     if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
@@ -1499,11 +1545,11 @@ try {{
         with open(temp_jsx, "w", encoding="utf-8") as f:
             f.write(jsx_script)
 
-        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+        applescript_cmd = f'''tell application "{ps_app}"
             do javascript (file "{temp_jsx}")
         end tell'''
 
-        with console.status(f"[bold cyan]Photoshop 2026 çalışıyor... (Bölüm: {etiket_no}, Ton1: {hue1}, Ton2: {hue2})[/bold cyan]"):
+        with console.status(f"[bold cyan]{ps_app} çalışıyor... (Bölüm: {etiket_no}, Ton1: {hue1}, Ton2: {hue2})[/bold cyan]"):
             proc = subprocess.run(
                 ["osascript", "-e", applescript_cmd],
                 capture_output=True,
@@ -1539,9 +1585,15 @@ try {{
 
 def haftalik_thumbnail_olustur():
     """
-    Photoshop 2026'da haftalık.psd dosyasını açar ve
+    Photoshop'ta haftalık.psd dosyasını açar ve
     hiçbir katmanı değiştirmeden maksimum kalitede haftalik_program.jpg olarak kaydeder.
     """
+    ps_app = photoshop_app_adi_al()
+    if not ps_app:
+        console.print("\n[bold red][HATA][/bold red] Sistemde Adobe Photoshop uygulaması bulunamadı!\n[yellow]Lütfen bilgisayarınızda Adobe Photoshop'un yüklü olduğundan emin olun.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return False
+
     psd_yolu = psd_sablonu_temin_et("haftalık.psd")
     if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
@@ -1573,11 +1625,11 @@ try {{
         with open(temp_jsx, "w", encoding="utf-8") as f:
             f.write(jsx_script)
 
-        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+        applescript_cmd = f'''tell application "{ps_app}"
             do javascript (file "{temp_jsx}")
         end tell'''
 
-        with console.status("[bold cyan]Photoshop 2026 çalışıyor... (haftalık.psd dışa aktarılıyor)[/bold cyan]"):
+        with console.status(f"[bold cyan]{ps_app} çalışıyor... (haftalık.psd dışa aktarılıyor)[/bold cyan]"):
             proc = subprocess.run(
                 ["osascript", "-e", applescript_cmd],
                 capture_output=True,
@@ -1615,11 +1667,17 @@ try {{
 
 def canli_mac_thumbnail_olustur(mac_verisi):
     """
-    Seçilen karşılaşma verisine göre Photoshop 2026'da canlimac.psd dosyasını günceller:
+    Seçilen karşılaşma verisine göre Photoshop'ta canlimac.psd dosyasını günceller:
     - Turnuva katmanını (superlig, cl, europa, conf, uluslar) gösterir, diğerlerini gizler.
     - Ev sahibi ve deplasman logolarını evtakim ve deptakim Smart Object'lerine yerleştirir.
     - Masaüstüne canlimacyatay.jpg olarak kaydeder.
     """
+    ps_app = photoshop_app_adi_al()
+    if not ps_app:
+        console.print("\n[bold red][HATA][/bold red] Sistemde Adobe Photoshop uygulaması bulunamadı!\n[yellow]Lütfen bilgisayarınızda Adobe Photoshop'un yüklü olduğundan emin olun.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return False
+
     psd_yolu = psd_sablonu_temin_et("canlimac.psd")
     if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
@@ -1778,7 +1836,7 @@ try {{
         with open(temp_jsx, "w", encoding="utf-8") as f:
             f.write(jsx_script)
 
-        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+        applescript_cmd = f'''tell application "{ps_app}"
             do javascript (file "{temp_jsx}")
         end tell'''
 
@@ -1786,7 +1844,7 @@ try {{
         dep_ad = mac_verisi['teams']['away']['name']
         lig_ad = mac_verisi['league']['name']
 
-        with console.status(f"[bold cyan]Photoshop 2026 çalışıyor... ({ev_ad} vs {dep_ad} | {lig_ad})[/bold cyan]"):
+        with console.status(f"[bold cyan]{ps_app} çalışıyor... ({ev_ad} vs {dep_ad} | {lig_ad})[/bold cyan]"):
             proc = subprocess.run(
                 ["osascript", "-e", applescript_cmd],
                 capture_output=True,
