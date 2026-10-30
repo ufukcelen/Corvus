@@ -1564,11 +1564,25 @@ def canli_mac_thumbnail_olustur(mac_verisi):
             r = requests.get(url, timeout=12)
             r.raise_for_status()
             img = Image.open(io.BytesIO(r.content)).convert("RGBA")
+            # Varsa kenardaki gereksiz saydam boşlukları kırp
+            bbox = img.getbbox()
+            if bbox:
+                img = img.crop(bbox)
+            
+            # Smart Object 700x700 tuvaline orantılı ve tam dolduracak şekilde büyüt
+            w, h = img.size
+            if w > 0 and h > 0:
+                ratio = min(680 / w, 680 / h)
+                new_w = max(1, int(w * ratio))
+                new_h = max(1, int(h * ratio))
+                img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            else:
+                img_resized = img
+
             canvas = Image.new("RGBA", (700, 700), (0, 0, 0, 0))
-            img.thumbnail((620, 620), Image.Resampling.LANCZOS)
-            x = (700 - img.width) // 2
-            y = (700 - img.height) // 2
-            canvas.paste(img, (x, y), img)
+            x = (700 - img_resized.width) // 2
+            y = (700 - img_resized.height) // 2
+            canvas.paste(img_resized, (x, y), img_resized)
             canvas.save(hedef_yol, format="PNG")
             return True
         except Exception as e:
