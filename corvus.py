@@ -38,8 +38,15 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.4.8"
+SURUM = "1.5.0"
 SURUM_NOTLARI = {
+    "1.5.0": [
+        "Photoshop Thumbnail Merkezi: Filtresiz Memleket, Canlı Maç ve Haftalık Program için tam otomatik PSD kapağı üretimi.",
+        "TV Yayın Standardında Optik Dengeleme: Dairesel ve oval/yıldızlı armaların (GS, Konya vb.) görsel ağırlık ve yatay merkez (Center-Y) uyumu tamamlandı.",
+        "Google Drive Entegrasyonu: 750 MB'lık büyük PSD şablonları yerel sistemde yoksa Drive üzerinden anlık ilerleme çubuğuyla otomatik indirilir.",
+        "Evrensel Photoshop Sürüm Desteği: macOS üzerindeki Photoshop 2024-2026 sürümleri otomatik tespit edilir (-2741 sözdizimi hatası giderildi).",
+        "Corvus.app Başlatıcı Optimizasyonu: Uygulama açılışında fazladan boş Terminal penceresi oluşumu engellendi.",
+    ],
     "1.4.8": [
         "Marka ve Kimlik Dönüşümü (Tellal -> Corvus): Uygulama adı, masaüstü simgesi ve web portali Corvus olarak yenilendi.",
         "Yeni Siber Karga Logosu: Yüksek çözünürlüklü macOS .icns ve web logo optimizasyonu tamamlandı.",

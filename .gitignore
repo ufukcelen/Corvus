@@ -7,6 +7,11 @@ __pycache__/
 *.corvus_indir
 *.app/
 *Logs/
+*_AME/
+*Auto-Save*/
+.DS_Store
+Icon?
+Icon
 old.py
 .son_surum
 user.txt
