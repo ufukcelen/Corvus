@@ -1572,13 +1572,13 @@ def canli_mac_thumbnail_olustur(mac_verisi):
             w, h = img.size
             if w > 0 and h > 0:
                 aspect = w / h
-                # Dairesel veya kareye yakın logolar (Konya, FB, vb.) tuvali çok fazla kaplayıp devasa
-                # görünmemesi için 580px; dikey/yıldızlı armalar (GS vb.) ise arma gövdesinin
-                # kaybolmaması için 660px olarak hedeflenir.
+                # PSD Smart Object tuvali 300x300 olduğundan:
+                # Dairesel veya kareye yakın logolar (Konya, FB, vb.): 255px
+                # Dikey/yıldızlı armalar (GS vb.): 285px
                 if 0.80 <= aspect <= 1.25:
-                    target_dim = 580
+                    target_dim = 255
                 else:
-                    target_dim = 660
+                    target_dim = 285
 
                 ratio = min(target_dim / w, target_dim / h)
                 new_w = max(1, int(w * ratio))
@@ -1587,9 +1587,10 @@ def canli_mac_thumbnail_olustur(mac_verisi):
             else:
                 img_resized = img
 
-            canvas = Image.new("RGBA", (700, 700), (0, 0, 0, 0))
-            x = (700 - img_resized.width) // 2
-            y = (700 - img_resized.height) // 2
+            canvas = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+            x = (300 - img_resized.width) // 2
+            # PSD'de iki katmanın alt tabanı eşitlendiği için logoları tabana yaslıyoruz
+            y = 300 - img_resized.height
             canvas.paste(img_resized, (x, y), img_resized)
             canvas.save(hedef_yol, format="PNG")
             return True
