@@ -32,6 +32,7 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich.table import Table
 from rich.markup import escape
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, DownloadColumn, TransferSpeedColumn, TimeRemainingColumn
 
 console = Console()
 
@@ -1308,18 +1309,107 @@ def fc27_kariyer_yap():
         console.print("[dim]Render atlandı.[/dim]")
 
 
+# =====================================================================
+# GOOGLE DRIVE PSD ŞABLONLARI
+# =====================================================================
+DRIVE_PSD_MAP = {
+    "canlimac.psd": "1-MoXpnTqW7NfQEkC9KKzOqcu_SkqK8LP",
+    "haftalık.psd": "1YBgnhw-Clc0lkDG7IATnlbIWWC-AyDOk",
+    "memleketYatay.psd": "1TfGYg6qZ9ndpWKCx1lEcc01j8WxNqxrZ",
+}
+
+
+def drive_psd_indir(file_id, hedef_yol, dosya_adi):
+    """Google Drive üzerinden büyük PSD dosyalarını doğrudan veya onay token'ı ile indirir."""
+    session = requests.Session()
+    url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&authuser=0&confirm=t"
+
+    with console.status(f"[bold cyan]Google Drive bağlantısı kuruluyor ({dosya_adi})...[/bold cyan]"):
+        r = session.get(url, stream=True, timeout=15)
+        if r.status_code != 200:
+            url_fb = "https://docs.google.com/uc?export=download"
+            r = session.get(url_fb, params={"id": file_id}, stream=True, timeout=15)
+            for k, v in r.cookies.items():
+                if "download_warning" in k:
+                    r = session.get(url_fb, params={"id": file_id, "confirm": v}, stream=True, timeout=15)
+                    break
+        r.raise_for_status()
+
+    toplam_boyut = int(r.headers.get("content-length", 0))
+    gecici_yol = hedef_yol + ".indiriliyor"
+    os.makedirs(os.path.dirname(hedef_yol), exist_ok=True)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.fields[filename]}[/bold cyan]"),
+        BarColumn(),
+        DownloadColumn(),
+        TransferSpeedColumn(),
+        TimeRemainingColumn(),
+        console=console
+    ) as progress:
+        task_id = progress.add_task("indir", total=toplam_boyut, filename=dosya_adi)
+        with open(gecici_yol, "wb") as f:
+            for parca in r.iter_content(chunk_size=1024 * 1024):
+                if parca:
+                    f.write(parca)
+                    progress.update(task_id, advance=len(parca))
+
+    os.replace(gecici_yol, hedef_yol)
+    return hedef_yol
+
+
+def psd_sablonu_temin_et(psd_adi):
+    """
+    Belirtilen PSD dosyasını yerel yollarda arar.
+    Bulamazsa Google Drive üzerinden otomatik indirir ve Masaüstüne kaydeder.
+    """
+    # 1. Masaüstünde var mı?
+    masaustu_yol = os.path.join(MASAUSTU, psd_adi)
+    if os.path.isfile(masaustu_yol) and os.path.getsize(masaustu_yol) > 1000:
+        return masaustu_yol
+
+    # 2. Proje dizini veya Templates altında var mı?
+    proje_yol = os.path.join(SCRIPT_DIR, "Templates", psd_adi)
+    if os.path.isfile(proje_yol) and os.path.getsize(proje_yol) > 1000:
+        return proje_yol
+
+    proje_psd_yol = os.path.join(SCRIPT_DIR, psd_adi)
+    if os.path.isfile(proje_psd_yol) and os.path.getsize(proje_psd_yol) > 1000:
+        return proje_psd_yol
+
+    # 3. Google Drive'dan temin et
+    file_id = DRIVE_PSD_MAP.get(psd_adi)
+    if not file_id:
+        console.print(f"\n[bold red][HATA][/bold red] '{psd_adi}' için Drive bağlantısı tanımlı değil.\n")
+        return None
+
+    try:
+        console.print(f"\n[bold cyan]📥 '{psd_adi}' yerel sistemde bulunamadı. Google Drive'dan otomatik indiriliyor...[/bold cyan]")
+        drive_psd_indir(file_id, masaustu_yol, psd_adi)
+        console.print(f"[bold green]✓ Şablon başarıyla indirildi ve hazırlandı:[/bold green] [dim]{masaustu_yol}[/dim]\n")
+        return masaustu_yol
+    except Exception as e:
+        console.print(f"\n[bold red][HATA][/bold red] Google Drive'dan indirme başarısız oldu: {e}\n")
+        if os.path.exists(masaustu_yol + ".indiriliyor"):
+            try:
+                os.remove(masaustu_yol + ".indiriliyor")
+            except OSError:
+                pass
+        return None
+
+
 def memleket_thumbnail_olustur_sihirbazi():
     """
     Adobe Photoshop 2026 otomasyonu:
-    - /Users/ufukcelen/Desktop/memleketYatay.psd dosyasını açar.
+    - memleketYatay.psd dosyasını açar.
     - 'bolumno' text katmanına bölüm numarasını (#...) yazar.
     - 'renk1' ve 'renk2' Hue/Saturation katmanlarına rastgele (-180, 180) Hue uygular.
-    - /Users/ufukcelen/Desktop/memleket{bolum_no}.jpg olarak maksimum kalitede kaydeder.
+    - Masaüstüne memleket{bolum_no}.jpg olarak maksimum kalitede kaydeder.
     - Orijinal PSD'yi kaydetmeden kapatır.
     """
-    psd_yolu = os.path.join(MASAUSTU, "memleketYatay.psd")
-    if not os.path.exists(psd_yolu):
-        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'memleketYatay.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+    psd_yolu = psd_sablonu_temin_et("memleketYatay.psd")
+    if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
         return
 
@@ -1449,12 +1539,11 @@ try {{
 
 def haftalik_thumbnail_olustur():
     """
-    Photoshop 2026'da masaüstündeki haftalık.psd dosyasını açar ve
+    Photoshop 2026'da haftalık.psd dosyasını açar ve
     hiçbir katmanı değiştirmeden maksimum kalitede haftalik_program.jpg olarak kaydeder.
     """
-    psd_yolu = os.path.join(MASAUSTU, "haftalık.psd")
-    if not os.path.exists(psd_yolu):
-        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'haftalık.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+    psd_yolu = psd_sablonu_temin_et("haftalık.psd")
+    if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
         return False
 
@@ -1531,9 +1620,8 @@ def canli_mac_thumbnail_olustur(mac_verisi):
     - Ev sahibi ve deplasman logolarını evtakim ve deptakim Smart Object'lerine yerleştirir.
     - Masaüstüne canlimacyatay.jpg olarak kaydeder.
     """
-    psd_yolu = os.path.join(MASAUSTU, "canlimac.psd")
-    if not os.path.exists(psd_yolu):
-        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'canlimac.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+    psd_yolu = psd_sablonu_temin_et("canlimac.psd")
+    if not psd_yolu:
         Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
         return False
 
