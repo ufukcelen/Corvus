@@ -983,6 +983,9 @@ def memleket_duyuru_yap():
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
+    if Confirm.ask("[bold yellow]Photoshop ile YouTube Thumbnail (Kapak Görseli) oluşturulsun mu?[/bold yellow]", default=True):
+        memleket_thumbnail_olustur_sihirbazi()
+
 
 ALBERT_SEO_SABLON = """-Albert ve Cem- Canlı Yayın -
 
@@ -1296,18 +1299,158 @@ def fc27_kariyer_yap():
         console.print("[dim]Render atlandı.[/dim]")
 
 
+def memleket_thumbnail_olustur_sihirbazi():
+    """
+    Adobe Photoshop 2026 otomasyonu:
+    - /Users/ufukcelen/Desktop/memleketYatay.psd dosyasını açar.
+    - 'bolumno' text katmanına bölüm numarasını (#...) yazar.
+    - 'renk1' ve 'renk2' Hue/Saturation katmanlarına rastgele (-180, 180) Hue uygular.
+    - /Users/ufukcelen/Desktop/memleket{bolum_no}.jpg olarak maksimum kalitede kaydeder.
+    - Orijinal PSD'yi kaydetmeden kapatır.
+    """
+    psd_yolu = os.path.join(MASAUSTU, "memleketYatay.psd")
+    if not os.path.exists(psd_yolu):
+        console.print(f"\n[bold red][HATA][/bold red] PSD şablonu bulunamadı:\n[dim]{psd_yolu}[/dim]\n[yellow]Lütfen 'memleketYatay.psd' dosyasını Masaüstüne yerleştirin.[/yellow]\n")
+        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        return
+
+    console.print()
+    panel_metni = (
+        "[bold cyan]🎨 Filtresiz Memleket Havası — Thumbnail Oluşturucu[/bold cyan]\n\n"
+        "[dim]• Şablon: memleketYatay.psd\n"
+        "• 'bolumno' text katmanı otomatik güncellenir.\n"
+        "• 'renk1' ve 'renk2' katmanlarına dinamik rastgele renk tonu (Hue) atanır.\n"
+        "• Masaüstüne 'memleket{no}.jpg' olarak kaydedilir.[/dim]"
+    )
+    console.print(Panel(panel_metni, title="[bold yellow]📸 Photoshop Otomasyonu", expand=False))
+
+    bolum_giris = Prompt.ask("[bold green]Bölüm Numarasını girin (Örn: 25 veya #25)[/bold green]", default="").strip()
+    if not bolum_giris or bolum_giris.lower() in ("q", "iptal", "exit", "esc"):
+        console.print("[dim yellow]İşlem iptal edildi.[/dim yellow]")
+        return
+
+    temiz_no = bolum_giris.lstrip("#").strip()
+    etiket_no = f"#{temiz_no}"
+    jpg_cikis_yolu = os.path.join(MASAUSTU, f"memleket{temiz_no}.jpg")
+
+    hue1 = random.randint(-180, 180)
+    hue2 = random.randint(-180, 180)
+
+    jsx_script = f"""#target photoshop
+app.displayDialogs = DialogModes.NO;
+
+function selectLayerByName(name) {{
+    var desc = new ActionDescriptor();
+    var ref = new ActionReference();
+    ref.putName(charIDToTypeID('Lyr '), name);
+    desc.putReference(charIDToTypeID('null'), ref);
+    desc.putBoolean(charIDToTypeID('MkVs'), false);
+    executeAction(charIDToTypeID('slct'), desc, DialogModes.NO);
+}}
+
+function changeHue(hueVal) {{
+    var desc = new ActionDescriptor();
+    var ref = new ActionReference();
+    ref.putEnumerated(charIDToTypeID('AdjL'), charIDToTypeID('Ordn'), charIDToTypeID('Trgt'));
+    desc.putReference(charIDToTypeID('null'), ref);
+
+    var descTo = new ActionDescriptor();
+    descTo.putEnumerated(stringIDToTypeID('presetKind'), stringIDToTypeID('presetKindType'), stringIDToTypeID('presetKindCustom'));
+
+    var list = new ActionList();
+    var item = new ActionDescriptor();
+    item.putInteger(charIDToTypeID('H   '), hueVal);
+    item.putInteger(charIDToTypeID('Strt'), 0);
+    item.putInteger(charIDToTypeID('Lght'), 0);
+    list.putObject(charIDToTypeID('HStr'), item);
+
+    descTo.putList(charIDToTypeID('Adjs'), list);
+    desc.putObject(charIDToTypeID('T   '), charIDToTypeID('HStr'), descTo);
+
+    executeAction(charIDToTypeID('setd'), desc, DialogModes.NO);
+}}
+
+try {{
+    var doc = app.open(new File('{psd_yolu}'));
+
+    selectLayerByName('bolumno');
+    doc.activeLayer.textItem.contents = '{etiket_no}';
+
+    selectLayerByName('renk1');
+    changeHue({hue1});
+
+    selectLayerByName('renk2');
+    changeHue({hue2});
+
+    var jpgFile = new File('{jpg_cikis_yolu}');
+    var jpgOpts = new JPEGSaveOptions();
+    jpgOpts.quality = 12;
+    jpgOpts.embedColorProfile = true;
+    doc.saveAs(jpgFile, jpgOpts, true, Extension.LOWERCASE);
+
+    doc.close(SaveOptions.DONOTSAVECHANGES);
+    'SUCCESS';
+}} catch (e) {{
+    'ERROR: ' + e.message;
+}}
+"""
+
+    temp_jsx = f"/tmp/corvus_thumbnail_{temiz_no}.jsx"
+    try:
+        with open(temp_jsx, "w", encoding="utf-8") as f:
+            f.write(jsx_script)
+
+        applescript_cmd = f'''tell application "Adobe Photoshop 2026"
+            do javascript (file "{temp_jsx}")
+        end tell'''
+
+        with console.status(f"[bold cyan]Photoshop 2026 çalışıyor... (Bölüm: {etiket_no}, Ton1: {hue1}, Ton2: {hue2})[/bold cyan]"):
+            proc = subprocess.run(
+                ["osascript", "-e", applescript_cmd],
+                capture_output=True,
+                text=True
+            )
+
+        sonuc = proc.stdout.strip()
+        if "ERROR" in sonuc or proc.returncode != 0:
+            hata_mesaji = sonuc or proc.stderr.strip()
+            console.print(f"\n[bold red][Photoshop Hatası][/bold red] {hata_mesaji}\n")
+        else:
+            ses_cal()
+            console.print()
+            bilgi_paneli = (
+                f"[bold green]✓ Thumbnail Başarıyla Oluşturuldu![/bold green]\n\n"
+                f"[bold cyan]Bölüm   :[/bold cyan] {etiket_no}\n"
+                f"[bold cyan]Renk Tonları:[/bold cyan] Renk1: [bold yellow]{hue1}[/bold yellow] | Renk2: [bold yellow]{hue2}[/bold yellow]\n"
+                f"[bold cyan]Kayıt Yolu  :[/bold cyan] [bold white]{jpg_cikis_yolu}[/bold white]"
+            )
+            console.print(Panel(bilgi_paneli, title="🎉 İşlem Tamamlandı", expand=False))
+            
+            if Confirm.ask("[bold yellow]Görseli açmak ister misiniz?[/bold yellow]", default=True):
+                subprocess.run(["open", jpg_cikis_yolu])
+    except Exception as e:
+        console.print(f"\n[bold red][HATA][/bold red] İşlem başarısız: {e}\n")
+    finally:
+        if os.path.exists(temp_jsx):
+            try:
+                os.remove(temp_jsx)
+            except Exception:
+                pass
+
+
 def radio_mocas_menu():
     while True:
         console.print("\n")
         menu = """[bold cyan]1.[/bold cyan] Filtresiz Memleket Havası
-[bold cyan]2.[/bold cyan] Albert ve Cem
-[bold cyan]3.[/bold cyan] Mocas Bey ve Radyosu
-[bold cyan]4.[/bold cyan] Aklımdaki Filmler
-[bold cyan]5.[/bold cyan] Geri"""
+[bold cyan]2.[/bold cyan] Memleket Thumbnail Oluştur (Photoshop) 🎨
+[bold cyan]3.[/bold cyan] Albert ve Cem
+[bold cyan]4.[/bold cyan] Mocas Bey ve Radyosu
+[bold cyan]5.[/bold cyan] Aklımdaki Filmler
+[bold cyan]6.[/bold cyan] Geri"""
         console.print(Panel(menu, title=f"[bold yellow]📻 Radio Mocas Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False))
 
-        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5"])
-        if secim == "5":
+        secim = Prompt.ask("[bold green]İşlem seçin[/bold green]", choices=["1", "2", "3", "4", "5", "6"])
+        if secim == "6":
             break
         if secim == "1":
             try:
@@ -1316,12 +1459,17 @@ def radio_mocas_menu():
                 console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         elif secim == "2":
             try:
-                albert_ve_cem_yap()
+                memleket_thumbnail_olustur_sihirbazi()
             except Exception as e:
                 console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         elif secim == "3":
-            yapim_asamasinda_goster("Mocas Bey ve Radyosu")
+            try:
+                albert_ve_cem_yap()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         elif secim == "4":
+            yapim_asamasinda_goster("Mocas Bey ve Radyosu")
+        elif secim == "5":
             yapim_asamasinda_goster("Aklımdaki Filmler")
 
 
@@ -2505,10 +2653,11 @@ def ana_menu_paneli_olustur(kullanici_id):
 [bold cyan]5.[/bold cyan] Yayın Ekle... 📅
 [bold cyan]6.[/bold cyan] Yayın İptal... ❌
 [bold cyan]7.[/bold cyan] Yayın Sil... 🗑️
-[bold cyan]8.[/bold cyan] Çıkış
+[bold cyan]8.[/bold cyan] Thumbnail Oluştur (Photoshop) 🎨
+[bold cyan]9.[/bold cyan] Çıkış
 
 [dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
-        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
+        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "k", "r", "t"]
     else:
         menu = f"""[bold cyan]1.[/bold cyan] Uykusuz Tosba Duyuru Sistemi
 [bold cyan]2.[/bold cyan] Radio Mocas Duyuru Sistemi
@@ -2517,10 +2666,11 @@ def ana_menu_paneli_olustur(kullanici_id):
 [bold cyan]5.[/bold cyan] Yayın Ekle... 📅
 [bold cyan]6.[/bold cyan] Yayın İptal... ❌
 [bold cyan]7.[/bold cyan] Yayın Sil... 🗑️
-[bold cyan]8.[/bold cyan] Çıkış
+[bold cyan]8.[/bold cyan] Thumbnail Oluştur (Photoshop) 🎨
+[bold cyan]9.[/bold cyan] Çıkış
 
 [dim cyan]Chat Refresh Yenile(R)[/dim cyan]"""
-        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "k", "r"]
+        gecerli_secimler = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "k", "r", "t"]
 
     return Panel(menu, title=f"[bold yellow]▶️  Youtube Duyuru Sistemi [cyan]v{SURUM}[/cyan]", expand=False), gecerli_secimler
 
@@ -2595,7 +2745,7 @@ def ana_menu(kullanici_id, kullanici_adi):
             continue
 
         if kullanici_id == "1":
-            if ana_secim == "8":
+            if ana_secim == "9":
                 uygulamadan_cik()
                 break
             elif ana_secim == "1":
@@ -2612,12 +2762,14 @@ def ana_menu(kullanici_id, kullanici_adi):
                 yayin_iptal_et()
             elif ana_secim == "7":
                 yayin_sil()
+            elif ana_secim in ("8", "t"):
+                memleket_thumbnail_olustur_sihirbazi()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
                 bildirimleri_kontrol_et(kullanici_id)
         else:
-            if ana_secim == "8":
+            if ana_secim == "9":
                 uygulamadan_cik()
                 break
             elif ana_secim == "1":
@@ -2634,6 +2786,8 @@ def ana_menu(kullanici_id, kullanici_adi):
                 yayin_iptal_et()
             elif ana_secim == "7":
                 yayin_sil()
+            elif ana_secim in ("8", "t"):
+                memleket_thumbnail_olustur_sihirbazi()
             elif ana_secim == "k":
                 kullanici_id, kullanici_adi = kullanici_degistir()
                 console.print(Panel(f"[bold green]✨ Hoş geldin {kullanici_adi}![/bold green]", expand=False))
