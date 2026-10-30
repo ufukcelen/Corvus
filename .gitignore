@@ -5,6 +5,7 @@ __pycache__/
 *Auto-Save*/
 *.tellal_indir
 *.corvus_indir
+*.app/
 *Logs/
 old.py
 .son_surum
