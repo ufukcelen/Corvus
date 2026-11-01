@@ -21,4 +21,7 @@ takvim.txt
 chat.txt
 .chat_sync*
 .firebase/
+*.log
+.gcalendar_sync*
+
 

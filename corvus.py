@@ -2367,6 +2367,13 @@ def takvim_senkronize_et():
         except Exception:
             pass
 
+    if guncellendi:
+        try:
+            from gcalendar_sync import google_takvim_senkronize_et
+            google_takvim_senkronize_et(satirlar)
+        except Exception:
+            pass
+
 
 def takvim_uzaga_gonder(icerik, guncelleyen="Ufuk"):
     """Güncellenmiş takvim.txt içeriğini Firebase Realtime Database'e ve ntfy üzerine kaydeder."""

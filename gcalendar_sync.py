@@ -21,6 +21,12 @@ import requests
 import subprocess
 from datetime import datetime, timedelta, timezone
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TAKVIM_DOSYASI = os.path.join(SCRIPT_DIR, "takvim.txt")
 FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db"
@@ -184,11 +190,26 @@ def google_takvim_senkronize_et(satirlar=None):
         return False, "Takvim bulunamadı"
 
     if satirlar is None:
-        if os.path.exists(TAKVIM_DOSYASI):
-            with open(TAKVIM_DOSYASI, "r", encoding="utf-8") as f:
-                satirlar = [s.strip() for s in f if s.strip()]
-        else:
-            satirlar = []
+        try:
+            r = requests.get(f"{FIREBASE_DB_URL}/takvim.json?t={int(time.time()*1000)}", timeout=3.0)
+            if r.status_code == 200:
+                data = r.json()
+                if isinstance(data, dict):
+                    if data.get("bos_mu"):
+                        satirlar = []
+                    else:
+                        satirlar = data.get("satirlar") or []
+                        if isinstance(satirlar, dict):
+                            satirlar = list(satirlar.values())
+        except Exception:
+            satirlar = None
+
+        if satirlar is None:
+            if os.path.exists(TAKVIM_DOSYASI):
+                with open(TAKVIM_DOSYASI, "r", encoding="utf-8") as f:
+                    satirlar = [s.strip() for s in f if s.strip()]
+            else:
+                satirlar = []
 
     # Gemini AI bot satırlarını filtrele
     satirlar = [s for s in satirlar if s and not ("Gemini AI" in s or "[Gemini AI]" in s)]
@@ -318,7 +339,7 @@ def google_takvim_senkronize_et(satirlar=None):
     return True, rapor
 
 
-def start_daemon_listener(poll_interval=4.0):
+def start_daemon_listener(poll_interval=3.0):
     """
     Firebase Realtime Database takvim tablosunu ve yerel takvim.txt dosyasını
     sürekli izleyerek Google Takvim'i arka planda otomatik güncel tutar.
@@ -327,7 +348,7 @@ def start_daemon_listener(poll_interval=4.0):
     print(f"📅 Hedef Takvim: '{CALENDAR_NAME}' (Google ID: {GOOGLE_CALENDAR_ID})")
     print(f"⏱️ Kontrol sıklığı: {poll_interval} saniye")
 
-    son_hash = ""
+    son_hash = None
     while True:
         try:
             # 1. Firebase RTDB kontrol
@@ -335,16 +356,27 @@ def start_daemon_listener(poll_interval=4.0):
             if r.status_code == 200:
                 data = r.json()
                 if isinstance(data, dict):
-                    satirlar = data.get("satirlar") or []
-                    if isinstance(satirlar, dict):
-                        satirlar = list(satirlar.values())
+                    if data.get("bos_mu"):
+                        satirlar = []
+                    else:
+                        satirlar = data.get("satirlar") or []
+                        if isinstance(satirlar, dict):
+                            satirlar = list(satirlar.values())
+
                     cur_hash = hashlib.md5("".join(satirlar).encode("utf-8")).hexdigest()
                     if cur_hash != son_hash:
                         ok, msg = google_takvim_senkronize_et(satirlar)
                         if ok:
                             print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
                             son_hash = cur_hash
-        except Exception as e:
+                            # Yerel takvim.txt dosyasını da güncel tut
+                            try:
+                                icerik = "\n".join(satirlar) + ("\n" if satirlar else "")
+                                with open(TAKVIM_DOSYASI, "w", encoding="utf-8") as f:
+                                    f.write(icerik)
+                            except Exception:
+                                pass
+        except Exception:
             pass
 
         time.sleep(poll_interval)

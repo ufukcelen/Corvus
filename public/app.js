@@ -474,7 +474,7 @@ function yeniYayinKaydet(e) {
 
   // Ntfy üzerinden buluta ve masaüstü Corvus'a aktar!
   yayinlariBulutaGonder(`${state.currentUser} webden yeni yayın ekledi: ${program}`);
-  showToast(`✓ "${program}" yayını başarıyla takvime eklendi ve Corvus Cloud'a senkronize edildi!`, "success");
+  showToast(`✓ "${program}" yayını takvime eklendi ve Google Takvim ile otomatik eşitleniyor! 📅`, "success");
 }
 
 // 6. Yayın Durumu Değiştirme (Tamamla / İptal)
