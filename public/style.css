@@ -519,7 +519,130 @@ body {
 .card-left {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 12px;
+}
+
+.drag-handle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  width: 26px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.drag-handle-btn:hover {
+  opacity: 1;
+  color: var(--primary);
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.25);
+  transform: scale(1.06);
+}
+
+.drag-handle-btn:active {
+  cursor: grabbing;
+  transform: scale(0.96);
+}
+
+/* Sürükleme ve Bırakma (Drag & Drop) Efektleri */
+.broadcast-card.is-dragging {
+  opacity: 0.35;
+  transform: scale(0.99);
+  border: 1px dashed var(--primary) !important;
+  box-shadow: 0 0 24px rgba(6, 182, 212, 0.3) !important;
+}
+
+.broadcast-card.drop-above {
+  position: relative;
+}
+
+.broadcast-card.drop-above::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  box-shadow: 0 0 12px var(--primary);
+  z-index: 10;
+}
+
+.broadcast-card.drop-below {
+  position: relative;
+}
+
+.broadcast-card.drop-below::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  box-shadow: 0 0 12px var(--primary);
+  z-index: 10;
+}
+
+/* Sıralama Menüsü Açılır Popover */
+.reorder-floating-menu {
+  position: fixed;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  min-width: 190px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fadeInReorderMenu 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInReorderMenu {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.reorder-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.reorder-menu-item:hover {
+  background: rgba(6, 182, 212, 0.16);
+  color: var(--primary);
+}
+
+.reorder-menu-divider {
+  height: 1px;
+  background: var(--border-glass);
+  margin: 4px 0;
 }
 
 .card-number {

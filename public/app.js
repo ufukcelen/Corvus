@@ -362,8 +362,22 @@ function renderCalendar() {
     }
 
     return `
-      <div class="broadcast-card ${statusClass}" data-index="${item.index}">
+      <div class="broadcast-card ${statusClass}" data-index="${item.index}" draggable="true">
         <div class="card-left">
+          <button class="drag-handle-btn" 
+                  type="button" 
+                  title="Sıralamak için basılı tutup sürükleyin veya tıklayın" 
+                  aria-label="Manuel Sıralama İkonu"
+                  onclick="openReorderMenu(event, ${item.index})">
+            <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor">
+              <circle cx="4" cy="3" r="1.5" />
+              <circle cx="10" cy="3" r="1.5" />
+              <circle cx="4" cy="9" r="1.5" />
+              <circle cx="10" cy="9" r="1.5" />
+              <circle cx="4" cy="15" r="1.5" />
+              <circle cx="10" cy="15" r="1.5" />
+            </svg>
+          </button>
           <div class="card-number">${item.no}</div>
           <div class="card-main-info">
             <div class="card-title-row">
@@ -401,6 +415,7 @@ function renderCalendar() {
     `;
   }).join("");
 
+  setupBroadcastDragAndDrop();
   renderMonthCalendar();
 }
 
@@ -536,7 +551,21 @@ function silYayin(index) {
 
   state.yayinlar.splice(index, 1);
 
-  // Yeniden numaralandır
+  renumberBroadcasts();
+  kaydetYerel();
+  renderCalendar();
+  updateStats();
+  yayinlariBulutaGonder(`${state.currentUser} webden bir yayını sildi.`);
+  showToast("Yayın takvimden silindi ve liste yeniden numaralandırıldı.", "info");
+}
+
+// =====================================================================
+// MANUEL SIRALAMA & DRAG AND DROP YÖNETİMİ
+// =====================================================================
+let draggedBroadcastIndex = null;
+let wasDraggingBroadcast = false;
+
+function renumberBroadcasts() {
   state.yayinlar = state.yayinlar.map((satir, i) => {
     const yeniNo = i + 1;
     if (satir.includes("-)")) {
@@ -545,12 +574,300 @@ function silYayin(index) {
     }
     return `${yeniNo}-) ${satir}`;
   });
+}
 
+function moveBroadcast(fromIndex, toIndex, position = "after") {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın sıralama yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= state.yayinlar.length || toIndex >= state.yayinlar.length) return;
+
+  const itemToMove = state.yayinlar[fromIndex];
+  state.yayinlar.splice(fromIndex, 1);
+
+  let insertAt = toIndex;
+  if (fromIndex < toIndex) {
+    insertAt = (position === "after") ? toIndex : (toIndex - 1);
+  } else {
+    insertAt = (position === "after") ? (toIndex + 1) : toIndex;
+  }
+
+  if (insertAt < 0) insertAt = 0;
+  if (insertAt > state.yayinlar.length) insertAt = state.yayinlar.length;
+
+  state.yayinlar.splice(insertAt, 0, itemToMove);
+  renumberBroadcasts();
   kaydetYerel();
   renderCalendar();
   updateStats();
-  yayinlariBulutaGonder(`${state.currentUser} webden bir yayını sildi.`);
-  showToast("Yayın takvimden silindi ve liste yeniden numaralandırıldı.", "info");
+  yayinlariBulutaGonder(`${state.currentUser} web üzerinden yayın sıralamasını değiştirdi.`);
+  showToast("✓ Yayın sıralaması güncellendi ve senkronize edildi.", "success");
+}
+
+function moveBroadcastStep(index, direction) {
+  closeReorderMenu();
+  if (state.userRole === "yonetici") {
+    showToast("Yayın sıralama yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
+  if (index < 0 || index >= state.yayinlar.length) return;
+
+  if (direction === "up") {
+    if (index === 0) {
+      showToast("Yayın zaten en başta.", "info");
+      return;
+    }
+    const temp = state.yayinlar[index];
+    state.yayinlar[index] = state.yayinlar[index - 1];
+    state.yayinlar[index - 1] = temp;
+    showToast("✓ Yayın bir sıra yukarı taşındı.", "success");
+  } else if (direction === "down") {
+    if (index === state.yayinlar.length - 1) {
+      showToast("Yayın zaten en sonda.", "info");
+      return;
+    }
+    const temp = state.yayinlar[index];
+    state.yayinlar[index] = state.yayinlar[index + 1];
+    state.yayinlar[index + 1] = temp;
+    showToast("✓ Yayın bir sıra aşağı taşındı.", "success");
+  } else if (direction === "top") {
+    if (index === 0) {
+      showToast("Yayın zaten en başta.", "info");
+      return;
+    }
+    const [item] = state.yayinlar.splice(index, 1);
+    state.yayinlar.unshift(item);
+    showToast("✓ Yayın en başa taşındı.", "success");
+  } else if (direction === "bottom") {
+    if (index === state.yayinlar.length - 1) {
+      showToast("Yayın zaten en sonda.", "info");
+      return;
+    }
+    const [item] = state.yayinlar.splice(index, 1);
+    state.yayinlar.push(item);
+    showToast("✓ Yayın en sona taşındı.", "success");
+  }
+
+  renumberBroadcasts();
+  kaydetYerel();
+  renderCalendar();
+  updateStats();
+  yayinlariBulutaGonder(`${state.currentUser} yayın sırasını değiştirdi.`);
+}
+
+function closeReorderMenu() {
+  const existing = document.getElementById("reorderFloatingMenu");
+  if (existing) existing.remove();
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".drag-handle-btn") && !e.target.closest("#reorderFloatingMenu")) {
+    closeReorderMenu();
+  }
+});
+
+function openReorderMenu(e, index) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (wasDraggingBroadcast) return;
+
+  if (state.userRole === "yonetici") {
+    showToast("Yayın sıralama yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
+
+  const existing = document.getElementById("reorderFloatingMenu");
+  if (existing && existing.dataset.index == index) {
+    closeReorderMenu();
+    return;
+  }
+  closeReorderMenu();
+
+  const total = state.yayinlar.length;
+  if (total <= 1) {
+    showToast("Sıralanacak başka yayın bulunmuyor.", "info");
+    return;
+  }
+
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+
+  const menu = document.createElement("div");
+  menu.id = "reorderFloatingMenu";
+  menu.className = "reorder-floating-menu";
+  menu.dataset.index = index;
+
+  const isFirst = (index === 0);
+  const isLast = (index === total - 1);
+
+  menu.innerHTML = `
+    <div style="padding: 4px 8px; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">
+      Sıralama Seçenekleri
+    </div>
+    ${!isFirst ? `
+      <button type="button" class="reorder-menu-item" onclick="moveBroadcastStep(${index}, 'up')">
+        <span>⬆️</span> <span>1 Sıra Yukarı Taşı</span>
+      </button>
+      <button type="button" class="reorder-menu-item" onclick="moveBroadcastStep(${index}, 'top')">
+        <span>🔝</span> <span>En Başa Taşı</span>
+      </button>
+    ` : ""}
+    ${!isLast ? `
+      <button type="button" class="reorder-menu-item" onclick="moveBroadcastStep(${index}, 'down')">
+        <span>⬇️</span> <span>1 Sıra Aşağı Taşı</span>
+      </button>
+      <button type="button" class="reorder-menu-item" onclick="moveBroadcastStep(${index}, 'bottom')">
+        <span>🔚</span> <span>En Sona Taşı</span>
+      </button>
+    ` : ""}
+    <div class="reorder-menu-divider"></div>
+    <div style="padding: 4px 8px; font-size: 0.7rem; color: var(--text-muted);">
+      💡 <em>İkonu basılı tutup sürükleyerek de sıralayabilirsiniz.</em>
+    </div>
+  `;
+
+  document.body.appendChild(menu);
+
+  let top = rect.bottom + 6;
+  let left = rect.left;
+
+  const menuRect = menu.getBoundingClientRect();
+  if (top + menuRect.height > window.innerHeight - 10) {
+    top = rect.top - menuRect.height - 6;
+  }
+  if (left + menuRect.width > window.innerWidth - 10) {
+    left = window.innerWidth - menuRect.width - 10;
+  }
+
+  menu.style.top = `${Math.max(10, top)}px`;
+  menu.style.left = `${Math.max(10, left)}px`;
+}
+
+function setupBroadcastDragAndDrop() {
+  const container = document.getElementById("broadcastListContainer");
+  if (!container) return;
+
+  const cards = container.querySelectorAll(".broadcast-card");
+
+  cards.forEach(card => {
+    const handle = card.querySelector(".drag-handle-btn");
+    const cardIndex = parseInt(card.dataset.index, 10);
+
+    card.addEventListener("dragstart", (e) => {
+      if (state.userRole === "yonetici") {
+        e.preventDefault();
+        showToast("Yayın sıralama yetkiniz bulunmamaktadır.", "warning");
+        return;
+      }
+      if (e.target.closest("button:not(.drag-handle-btn)") || e.target.closest("a") || e.target.closest("input")) {
+        e.preventDefault();
+        return;
+      }
+
+      closeReorderMenu();
+      draggedBroadcastIndex = cardIndex;
+      wasDraggingBroadcast = true;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", cardIndex);
+      setTimeout(() => card.classList.add("is-dragging"), 10);
+    });
+
+    card.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (draggedBroadcastIndex === null || draggedBroadcastIndex === cardIndex) return;
+
+      const rect = card.getBoundingClientRect();
+      const isTop = (e.clientY - rect.top) < (rect.height / 2);
+      card.classList.toggle("drop-above", isTop);
+      card.classList.toggle("drop-below", !isTop);
+    });
+
+    card.addEventListener("dragleave", () => {
+      card.classList.remove("drop-above", "drop-below");
+    });
+
+    card.addEventListener("drop", (e) => {
+      e.preventDefault();
+      card.classList.remove("drop-above", "drop-below");
+      if (draggedBroadcastIndex === null || draggedBroadcastIndex === cardIndex) return;
+
+      const rect = card.getBoundingClientRect();
+      const isTop = (e.clientY - rect.top) < (rect.height / 2);
+      const fromIdx = draggedBroadcastIndex;
+      draggedBroadcastIndex = null;
+      moveBroadcast(fromIdx, cardIndex, isTop ? "before" : "after");
+    });
+
+    card.addEventListener("dragend", () => {
+      draggedBroadcastIndex = null;
+      cards.forEach(c => c.classList.remove("is-dragging", "drop-above", "drop-below"));
+      setTimeout(() => { wasDraggingBroadcast = false; }, 150);
+    });
+
+    // Dokunmatik Ekranlar (Touch/Tablet) Desteği
+    if (handle) {
+      let touchStartY = 0;
+      let isTouchDragging = false;
+      let lastHoveredCard = null;
+
+      handle.addEventListener("touchstart", (e) => {
+        if (state.userRole === "yonetici") return;
+        touchStartY = e.touches[0].clientY;
+        draggedBroadcastIndex = cardIndex;
+        isTouchDragging = false;
+      }, { passive: true });
+
+      handle.addEventListener("touchmove", (e) => {
+        const touch = e.touches[0];
+        const diffY = Math.abs(touch.clientY - touchStartY);
+        if (diffY > 8) {
+          isTouchDragging = true;
+          wasDraggingBroadcast = true;
+          card.classList.add("is-dragging");
+        }
+        if (!isTouchDragging) return;
+
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        const targetCard = el ? el.closest(".broadcast-card") : null;
+
+        cards.forEach(c => {
+          if (c !== targetCard) c.classList.remove("drop-above", "drop-below");
+        });
+
+        if (targetCard && targetCard !== card) {
+          lastHoveredCard = targetCard;
+          const rect = targetCard.getBoundingClientRect();
+          const isTop = (touch.clientY - rect.top) < (rect.height / 2);
+          targetCard.classList.toggle("drop-above", isTop);
+          targetCard.classList.toggle("drop-below", !isTop);
+        } else {
+          lastHoveredCard = null;
+        }
+      }, { passive: true });
+
+      handle.addEventListener("touchend", () => {
+        card.classList.remove("is-dragging");
+        if (isTouchDragging && lastHoveredCard && draggedBroadcastIndex !== null) {
+          const targetIndex = parseInt(lastHoveredCard.dataset.index, 10);
+          const isTop = lastHoveredCard.classList.contains("drop-above");
+          lastHoveredCard.classList.remove("drop-above", "drop-below");
+          const fromIdx = draggedBroadcastIndex;
+          draggedBroadcastIndex = null;
+          isTouchDragging = false;
+          lastHoveredCard = null;
+          moveBroadcast(fromIdx, targetIndex, isTop ? "before" : "after");
+        } else {
+          draggedBroadcastIndex = null;
+          isTouchDragging = false;
+          cards.forEach(c => c.classList.remove("drop-above", "drop-below"));
+        }
+        setTimeout(() => { wasDraggingBroadcast = false; }, 200);
+      });
+    }
+  });
 }
 
 // =====================================================================
