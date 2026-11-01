@@ -1828,64 +1828,49 @@ const GEMINI_AI_FIXTURES = [
     aciklama: "⚽ 19:00 Kasımpaşa vs Beşiktaş"
   },
   {
-    id: "uefa-ajax-gs",
-    takimlar: "Ajax - Galatasaray",
-    kisaAd: "Ajax - GS (UEFA)",
+    id: "uefa-gs-stuttgart",
+    takimlar: "Galatasaray - Stuttgart",
+    kisaAd: "GS - Stuttgart (UEFA)",
     brans: "futbol",
     bransAdi: "Futbol",
     ikon: "⚽",
-    lig: "UEFA Avrupa Arenası",
+    lig: "UEFA Şampiyonlar Ligi",
+    tip: "futbol",
+    gun: 3,
+    ay: 10, // 3 Kasım
+    yil: 2026,
+    saat: "20:45",
+    aciklama: "⚽ 20:45 Galatasaray vs Stuttgart (Kendi Evinde)"
+  },
+  {
+    id: "uefa-fb-liverpool",
+    takimlar: "Fenerbahçe - Liverpool",
+    kisaAd: "FB - Liverpool (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Avrupa Ligi",
+    tip: "futbol",
+    gun: 4,
+    ay: 10, // 4 Kasım
+    yil: 2026,
+    saat: "20:30",
+    aciklama: "⚽ 20:30 Fenerbahçe vs Liverpool (UEFA Avrupa Ligi)"
+  },
+  {
+    id: "uefa-celtic-bjk",
+    takimlar: "Celtic - Beşiktaş",
+    kisaAd: "Celtic - BJK (UEFA)",
+    brans: "futbol",
+    bransAdi: "Futbol",
+    ikon: "⚽",
+    lig: "UEFA Avrupa Ligi",
     tip: "futbol",
     gun: 5,
     ay: 10, // 5 Kasım
     yil: 2026,
-    saat: "23:00",
-    aciklama: "⚽ 23:00 Ajax vs Galatasaray (UEFA Avrupa)"
-  },
-  {
-    id: "uefa-bjk-malmo",
-    takimlar: "Beşiktaş - Malmö",
-    kisaAd: "BJK - Malmö (UEFA)",
-    brans: "futbol",
-    bransAdi: "Futbol",
-    ikon: "⚽",
-    lig: "UEFA Avrupa Ligi",
-    tip: "futbol",
-    gun: 6,
-    ay: 10, // 6 Kasım
-    yil: 2026,
-    saat: "18:30",
-    aciklama: "⚽ 18:30 Beşiktaş vs Malmö (UEFA Avrupa Ligi)"
-  },
-  {
-    id: "uefa-ts-rapid",
-    takimlar: "Trabzonspor - Rapid Wien",
-    kisaAd: "TS - Rapid Wien (UEFA)",
-    brans: "futbol",
-    bransAdi: "Futbol",
-    ikon: "⚽",
-    lig: "UEFA Konferans Ligi",
-    tip: "futbol",
-    gun: 7,
-    ay: 10, // 7 Kasım
-    yil: 2026,
-    saat: "20:45",
-    aciklama: "⚽ 20:45 Trabzonspor vs Rapid Wien (UEFA Konferans Ligi)"
-  },
-  {
-    id: "uefa-az-fb",
-    takimlar: "AZ Alkmaar - Fenerbahçe",
-    kisaAd: "AZ - FB (UEFA)",
-    brans: "futbol",
-    bransAdi: "Futbol",
-    ikon: "⚽",
-    lig: "UEFA Avrupa Ligi",
-    tip: "futbol",
-    gun: 7,
-    ay: 10, // 7 Kasım
-    yil: 2026,
-    saat: "23:00",
-    aciklama: "⚽ 23:00 AZ Alkmaar vs Fenerbahçe (UEFA Avrupa Ligi)"
+    saat: "22:45",
+    aciklama: "⚽ 22:45 Celtic vs Beşiktaş (UEFA Avrupa Ligi)"
   },
   {
     id: "milli-tur-wal",
