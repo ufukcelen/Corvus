@@ -2094,3 +2094,70 @@ body {
 .footer-divider {
   opacity: 0.4;
 }
+
+/* =====================================================================
+   GEMINI AI ASİSTANI VE FİKSTÜR MODAL STİLLERİ
+   ===================================================================== */
+.gemini-modal-box {
+  max-width: 560px;
+  background: #111827;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(139, 92, 246, 0.18);
+}
+
+.gemini-modal-header {
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%);
+}
+
+.gemini-action-card, .gemini-nlp-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.gemini-action-card:hover, .gemini-nlp-card:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.gemini-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.gemini-card-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  background: rgba(139, 92, 246, 0.18);
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  flex-shrink: 0;
+}
+
+.gemini-modal-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 18px 0;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.gemini-modal-divider::before,
+.gemini-modal-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gemini-modal-divider span {
+  padding: 0 12px;
+}
+

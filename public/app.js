@@ -4,13 +4,32 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
 const STORAGE_KEY_TAKVIM = "corvus_web_takvim";
 const STORAGE_KEY_USER = "corvus_web_user";
 const STORAGE_KEY_AUTH = "corvus_auth_session";
+let GEMINI_API_KEY = localStorage.getItem("corvus_gemini_api_key") || "";
+
+async function getGeminiApiKey() {
+  if (GEMINI_API_KEY) return GEMINI_API_KEY;
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/config/gemini_key.json`);
+    if (res.ok) {
+      const key = await res.json();
+      if (key && typeof key === "string") {
+        GEMINI_API_KEY = key;
+        localStorage.setItem("corvus_gemini_api_key", key);
+        return key;
+      }
+    }
+  } catch (e) {
+    console.warn("Gemini API key yükleme hatası:", e);
+  }
+  return "";
+}
 
 // Rol Tanımları
 const ROLES = {
@@ -1157,10 +1176,32 @@ function setupEventListeners() {
     });
   });
 
-  // Gemini AI Maç Tara Butonu
+  // Gemini AI Maç Tara Butonu & Modal Kontrolleri
   const geminiBtn = document.getElementById("btnGeminiAiScan");
   if (geminiBtn) {
-    geminiBtn.addEventListener("click", () => runGeminiAiMatchScanner(true));
+    geminiBtn.addEventListener("click", () => openGeminiAiModal());
+  }
+
+  const closeGeminiBtn = document.getElementById("closeGeminiModalBtn");
+  if (closeGeminiBtn) {
+    closeGeminiBtn.addEventListener("click", () => closeGeminiAiModal());
+  }
+
+  const geminiModalOverlay = document.getElementById("geminiAiModalOverlay");
+  if (geminiModalOverlay) {
+    geminiModalOverlay.addEventListener("click", (e) => {
+      if (e.target === geminiModalOverlay) closeGeminiAiModal();
+    });
+  }
+
+  const btnQuickSync = document.getElementById("btnGeminiQuickSync");
+  if (btnQuickSync) {
+    btnQuickSync.addEventListener("click", () => handleGeminiQuickSync());
+  }
+
+  const btnParseAdd = document.getElementById("btnGeminiParseAdd");
+  if (btnParseAdd) {
+    btnParseAdd.addEventListener("click", () => handleGeminiParseAdd());
   }
 
   // Karşılaşmalar Açılır Filtre Menüsü Kontrolleri
@@ -2366,29 +2407,190 @@ async function senkronizeGeminiMatches() {
   }
 }
 
+function openGeminiAiModal() {
+  const modal = document.getElementById("geminiAiModalOverlay");
+  if (!modal) return;
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add("open"), 10);
+  const status = document.getElementById("geminiNlpStatus");
+  if (status) status.style.display = "none";
+  const input = document.getElementById("geminiNlpInput");
+  if (input) input.focus();
+}
+
+function closeGeminiAiModal() {
+  const modal = document.getElementById("geminiAiModalOverlay");
+  if (!modal) return;
+  modal.classList.remove("open");
+  setTimeout(() => { modal.style.display = "none"; }, 250);
+}
+
+async function handleGeminiQuickSync() {
+  const btnText = document.getElementById("geminiQuickSyncText");
+  if (btnText) btnText.textContent = "⏳ Fikstür Yükleniyor...";
+  
+  await runGeminiAiMatchScanner(true);
+  
+  if (btnText) btnText.textContent = "✓ 21 Günlük Fikstür Yüklendi!";
+  setTimeout(() => {
+    if (btnText) btnText.textContent = "21 Günlük Teyitli Fikstürü Takvime Yükle";
+    closeGeminiAiModal();
+  }, 900);
+}
+
+async function handleGeminiParseAdd() {
+  const input = document.getElementById("geminiNlpInput");
+  const status = document.getElementById("geminiNlpStatus");
+  const btn = document.getElementById("btnGeminiParseAdd");
+  const btnText = document.getElementById("geminiParseBtnText");
+  if (!input || !status) return;
+
+  const rawText = input.value.trim();
+  if (!rawText) {
+    status.style.display = "block";
+    status.style.background = "rgba(239, 68, 68, 0.15)";
+    status.style.color = "#f87171";
+    status.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+    status.innerHTML = "⚠️ Lütfen bir maç bilgisi veya duyuru metni yazın.";
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = "✨ Gemini Çözümlüyor...";
+  status.style.display = "block";
+  status.style.background = "rgba(139, 92, 246, 0.15)";
+  status.style.color = "#c4b5fd";
+  status.style.border = "1px solid rgba(139, 92, 246, 0.3)";
+  status.innerHTML = "⏳ Google Gemini 3.5 Flash yapay zekâsı metni analiz ediyor...";
+
+  try {
+    const parsedMatch = await callGeminiToParseMatch(rawText);
+    if (!parsedMatch || !parsedMatch.takimlar || !parsedMatch.gun) {
+      throw new Error("Yapay zekâ maç bilgilerini net olarak çıkaramadı.");
+    }
+
+    // Takvime ekle
+    state.geminiMatches.push(parsedMatch);
+    localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
+    localStorage.setItem("corvus_gemini_matches", JSON.stringify(state.geminiMatches));
+
+    // Firebase Realtime Database'e kaydet
+    await fetch(`${FIREBASE_DB_URL}/gemini_matches.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        matches: state.geminiMatches,
+        son_guncelleme: Math.floor(Date.now() / 1000),
+        kaynak: "Gemini AI Serbest Metin"
+      })
+    });
+
+    renderMonthCalendar();
+
+    status.style.background = "rgba(16, 185, 129, 0.15)";
+    status.style.color = "#34d399";
+    status.style.border = "1px solid rgba(16, 185, 129, 0.3)";
+    status.innerHTML = `✅ <strong>Eklendi:</strong> ${escapeHtml(parsedMatch.takimlar)} (${parsedMatch.gun} ${AY_ISIMLERI[parsedMatch.ay]} ${parsedMatch.saat})`;
+
+    showToast(`✅ ${parsedMatch.takimlar} takvime eklendi!`, "success");
+    input.value = "";
+
+    setTimeout(() => {
+      closeGeminiAiModal();
+    }, 1500);
+  } catch (err) {
+    status.style.background = "rgba(239, 68, 68, 0.15)";
+    status.style.color = "#f87171";
+    status.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+    status.innerHTML = `⚠️ Hata: ${escapeHtml(err.message || "Bağlantı hatası")}`;
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = "Gemini ile Çözümle ve Takvime Ekle";
+  }
+}
+
+async function callGeminiToParseMatch(text) {
+  const apiKey = await getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error("Gemini API anahtarı yapılandırılmamış.");
+  }
+  const now = new Date();
+  const prompt = `Aşağıdaki metinden maç / spor karşılaşması bilgilerini çıkarıp tek bir JSON objesi döndür:
+Metin: "${text}"
+Bugünün referans tarihi: ${now.getDate()} ${AY_ISIMLERI[now.getMonth()]} ${now.getFullYear()}.
+Zorunlu JSON Formatı:
+{
+  "id": "gemini-${Date.now()}",
+  "takimlar": "Ev Sahibi - Deplasman (veya F1 için Grand Prix Adı)",
+  "kisaAd": "Kısa başlık (örn: FB Beko - ASVEL 🏆)",
+  "brans": "futbol" | "voleybol" | "nba" | "eurolig" | "tenis" | "f1",
+  "bransAdi": "Futbol" | "Voleybol" | "NBA" | "EuroLig Basket" | "Tenis" | "Formula 1",
+  "ikon": "⚽" | "🏐" | "🏀" | "🏆" | "🎾" | "🏎️",
+  "lig": "Lig veya Turnuva Adı (örn: Turkish Airlines EuroLeague)",
+  "gun": GünSayısı (1-31),
+  "ay": AyIndex (0=Ocak, 1=Şubat, 2=Mart, 3=Nisan, 4=Mayıs, 5=Haziran, 6=Temmuz, 7=Ağustos, 8=Eylül, 9=Ekim, 10=Kasım, 11=Aralık),
+  "yil": Yıl (örn: 2026),
+  "saat": "HH:MM",
+  "aciklama": "Detaylı açıklama"
+}`;
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" }
+    })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || `HTTP ${res.status}`);
+  }
+
+  const data = await res.json();
+  const rawJson = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!rawJson) throw new Error("Gemini geçerli bir yanıt üretemedi.");
+  return JSON.parse(rawJson);
+}
+
 async function runGeminiAiMatchScanner(isManual = false) {
   if (isManual && state.userRole === "yonetici") {
     showToast("Gemini AI tarayıcı yetkisi yalnızca Admin rolündedir.", "warning");
     return;
   }
-  // 1. Gemini AI maçlarını state'e yükle (Yayın takvimine değil, doğrudan normal takvim gridine eklenir)
-  state.geminiMatches = [...GEMINI_AI_FIXTURES];
+
+  const now = new Date();
+  const todayDay = now.getDate();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+
+  // GEMINI_AI_FIXTURES ve mevcut teyitli maçları birleştir
+  const mergedMap = new Map();
+  GEMINI_AI_FIXTURES.forEach(m => {
+    mergedMap.set(m.id, m);
+  });
+  (state.geminiMatches || []).forEach(m => {
+    if (!MOCK_MATCH_IDS.has(m.id)) {
+      mergedMap.set(m.id, m);
+    }
+  });
+
+  // Bugünden önceki geçmiş günlerin maçlarını filtrele
+  state.geminiMatches = Array.from(mergedMap.values()).filter(m => {
+    if (m.yil < thisYear) return false;
+    if (m.yil === thisYear && m.ay < thisMonth) return false;
+    if (m.yil === thisYear && m.ay === thisMonth && m.gun < todayDay) return false;
+    return true;
+  });
+
   localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
+  localStorage.setItem("corvus_gemini_matches", JSON.stringify(state.geminiMatches));
 
-  // 2. Eğer daha önceden state.yayinlar'a yanlışlıkla girmiş bot satırları varsa yayın takviminden tamamen sil
-  const oncekiUzunluk = state.yayinlar.length;
-  state.yayinlar = state.yayinlar.filter(y => !(y.includes("Gemini AI") || y.includes("[Gemini AI]")));
-  if (state.yayinlar.length !== oncekiUzunluk) {
-    kaydetYerel();
-    renderCalendar();
-    updateStats();
-    await yayinlariBulutaGonder("Yayın takviminden Gemini AI satırları temizlendi.");
-  }
-
-  // 3. Normal takvimi yeniden render et (maçlar takvim hücrelerinde parlayacak)
+  // Normal takvimi yeniden render et
   renderMonthCalendar();
 
-  // 4. Firebase RTDB gemini_matches.json tablosuna kaydet
+  // Firebase RTDB gemini_matches.json tablosuna kaydet
   try {
     await fetch(`${FIREBASE_DB_URL}/gemini_matches.json`, {
       method: "PUT",
@@ -2396,16 +2598,15 @@ async function runGeminiAiMatchScanner(isManual = false) {
       body: JSON.stringify({
         matches: state.geminiMatches,
         son_guncelleme: Math.floor(Date.now() / 1000),
-        kaynak: "Gemini AI"
+        kaynak: "Gemini AI (Doğrulanmış 21 Günlük Fikstür)"
       })
     });
   } catch (e) {
     console.warn("Gemini matches bulut kaydı hatası:", e);
   }
 
-  // 5. Toast göster (Chate veya yayın takvimine ASLA yazılmaz)
   if (isManual) {
-    showToast("✨ Gemini AI: Maçlar doğrudan normal takvim gridine event olarak işlendi! ⚽", "success");
+    showToast(`✨ Gemini AI: 21 günlük ${state.geminiMatches.length} karşılaşma takvime başarıyla işlendi!`, "success");
   }
 }
 

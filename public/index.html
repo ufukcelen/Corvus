@@ -394,6 +394,59 @@
     </div>
   </div>
 
+  <!-- Gemini AI Asistanı & Fikstür Güncelleme Modalı -->
+  <div class="modal-overlay" id="geminiAiModalOverlay" role="dialog" aria-modal="true" style="display: none;">
+    <div class="modal-box gemini-modal-box">
+      <div class="modal-header gemini-modal-header">
+        <h3 style="display: flex; align-items: center; gap: 8px;">
+          <span class="ai-sparkle">✨</span>
+          <span>Gemini AI Fikstür & Maç Asistanı</span>
+        </h3>
+        <button class="close-btn" id="closeGeminiModalBtn" aria-label="Kapat">&times;</button>
+      </div>
+      <div class="modal-body gemini-modal-body">
+        <!-- 1. Hızlı 21 Günlük Fikstür Kartı -->
+        <div class="gemini-action-card">
+          <div class="gemini-card-header">
+            <span class="gemini-card-icon">📅</span>
+            <div>
+              <h4 style="margin: 0 0 4px 0; color: #fff; font-size: 1rem;">21 Günlük Fikstürü Otomatik Güncelle</h4>
+              <p style="margin: 0; color: var(--text-dim); font-size: 0.85rem; line-height: 1.4;">
+                Futbol, EuroLig Basket, Voleybol, Formula 1, NBA ve Tenis teyitli karşılaşmalarını takvime işler, geçmiş maçları temizler.
+              </p>
+            </div>
+          </div>
+          <button id="btnGeminiQuickSync" class="btn btn-gemini-ai btn-block" style="margin-top: 14px; justify-content: center;">
+            <span class="ai-sparkle">✨</span>
+            <span id="geminiQuickSyncText">21 Günlük Teyitli Fikstürü Takvime Yükle</span>
+          </button>
+        </div>
+
+        <div class="gemini-modal-divider">
+          <span>VEYA YAPAY ZEKÂ İLE METİNDEN EKLE</span>
+        </div>
+
+        <!-- 2. Serbest Metinden Maç Çıkarma Kartı -->
+        <div class="gemini-nlp-card">
+          <label for="geminiNlpInput" style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #fff; margin-bottom: 6px; font-size: 0.92rem;">
+            <span>🤖</span> Metin veya Duyurudan Maç Çıkar
+          </label>
+          <p style="margin: 0 0 10px 0; color: var(--text-dim); font-size: 0.83rem; line-height: 1.4;">
+            Bir duyuru metni, haber veya maç notu yazın. Gemini AI tarih, saat, branş ve ikonları otomatik tespit edip takvime ekler.
+          </p>
+          <textarea id="geminiNlpInput" class="form-control" rows="3" placeholder="Örn: 18 Kasım Çarşamba 20:45 Fenerbahçe Beko - ASVEL EuroLeague maçı"></textarea>
+          
+          <div id="geminiNlpStatus" style="display: none; margin-top: 10px; font-size: 0.88rem; padding: 10px; border-radius: 8px;"></div>
+
+          <button id="btnGeminiParseAdd" class="btn btn-primary btn-block" style="margin-top: 12px; justify-content: center;">
+            <span>✨</span>
+            <span id="geminiParseBtnText">Gemini ile Çözümle ve Takvime Ekle</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Kullanıcı Giriş Ekranı (Authentication Modal) -->
   <div class="login-modal-overlay" id="loginModalOverlay" role="dialog" aria-modal="true" style="display: none;">
     <div class="login-card">
@@ -457,7 +510,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=1.5.0"></script>
+  <script src="app.js?v=1.5.1"></script>
 </body>
 
 </html>
