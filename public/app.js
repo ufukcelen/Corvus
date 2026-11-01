@@ -4,7 +4,7 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.4.8";
+const APP_VERSION = "1.4.9";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
@@ -58,6 +58,23 @@ const AUTH_USERS = [
     password: "hTFUHYrif2fSLraH"
   }
 ];
+
+// Eski uydurma (mock) maç ID'leri listesi (asla takvime alınmaz)
+const MOCK_MATCH_IDS = new Set([
+  'derbi-gs-fb', 'bjk-basaksehir', 'rize-ts', 'konya-gs', 'fb-goztepe', 'ts-gaziantep', 
+  'kasimpasa-bjk', 'uefa-ajax-gs', 'uefa-bjk-malmo', 'uefa-ts-rapid', 'uefa-az-fb', 
+  'voleybol-ita', 'voleybol-srb', 'voleybol-brezilya', 'voleybol-polonya', 
+  'vol-tur-ita', 'vol-tur-srb', 'vol-tur-bra', 'vol-tur-pol',
+  'nba-lakers-warriors', 'nba-celtics-nuggets', 'nba-rockets-clippers', 'nba-bucks-mavs', 'nba-heat-suns', 
+  'nba-lal-gsw', 'nba-bos-den', 'nba-hou-lac', 'nba-mil-dal', 'nba-mia-phx',
+  'eurolig-fb-madrid', 'eurolig-efes-pana', 'eurolig-oly-fb', 'eurolig-efes-barca', 'eurolig-fb-maccabi', 
+  'euro-fb-rma', 'euro-efs-pao', 'euro-oly-fb', 'euro-efs-bar', 'euro-fb-mta',
+  'tenis-paris-semi', 'tenis-paris-final', 'tenis-atp-torino', 'tenis-atp-final', 
+  'ten-alc-sin', 'ten-paris-final', 'ten-djo-med', 'ten-atp-final',
+  'f1-meksika-gp', 'f1-brezilya-sprint', 'f1-brezilya-gp', 'f1-vegas-gp', 
+  'f1-mexico-gp', 'f1-brazil-sprint', 'f1-brazil-gp',
+  'milli-tur-wal'
+]);
 
 let state = {
   currentUser: "Ufuk Çelen",
@@ -205,16 +222,6 @@ async function initCalendarData() {
   }
 
   // Gemini AI Maçlarını localStorage'dan veya varsayılan fikstürden yükle (Eski mock maçları ayıkla)
-  const MOCK_MATCH_IDS = new Set([
-    'derbi-gs-fb', 'bjk-basaksehir', 'rize-ts', 'konya-gs', 'fb-goztepe', 'ts-gaziantep', 
-    'kasimpasa-bjk', 'uefa-ajax-gs', 'uefa-bjk-malmo', 'uefa-ts-rapid', 'uefa-az-fb', 
-    'voleybol-ita', 'voleybol-srb', 'voleybol-brezilya', 'voleybol-polonya', 
-    'nba-lakers-warriors', 'nba-celtics-nuggets', 'nba-rockets-clippers', 'nba-bucks-mavs', 'nba-heat-suns', 
-    'eurolig-fb-madrid', 'eurolig-efes-pana', 'eurolig-oly-fb', 'eurolig-efes-barca', 'eurolig-fb-maccabi', 
-    'tenis-paris-semi', 'tenis-paris-final', 'tenis-atp-torino', 'tenis-atp-final', 
-    'f1-meksika-gp', 'f1-brezilya-sprint', 'f1-brezilya-gp', 'f1-vegas-gp', 'milli-tur-wal'
-  ]);
-
   const localMatches = localStorage.getItem("corvus_gemini_matches") || localStorage.getItem("tellal_gemini_matches");
   if (localMatches) {
     try {
@@ -1790,8 +1797,10 @@ async function senkronizeGeminiMatches() {
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.matches)) {
-        if (JSON.stringify(data.matches) !== JSON.stringify(state.geminiMatches)) {
-          state.geminiMatches = data.matches;
+        // Eski sahte (mock) maçları anında filtrele
+        const filtered = data.matches.filter(m => !MOCK_MATCH_IDS.has(m.id));
+        if (JSON.stringify(filtered) !== JSON.stringify(state.geminiMatches)) {
+          state.geminiMatches = filtered.length > 0 ? filtered : [...GEMINI_AI_FIXTURES];
           localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
           renderMonthCalendar();
         }
