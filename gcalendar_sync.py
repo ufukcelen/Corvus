@@ -339,17 +339,92 @@ def google_takvim_senkronize_et(satirlar=None):
     return True, rapor
 
 
+# Weatherstack Canlı Hava Durumu Ayarları
+def get_weatherstack_api_key():
+    key_path = os.path.join(SCRIPT_DIR, "weather_api.txt")
+    if os.path.exists(key_path):
+        try:
+            with open(key_path, "r", encoding="utf-8") as f:
+                k = f.read().strip()
+                if k:
+                    return k
+        except Exception:
+            pass
+    try:
+        r = requests.get(f"{FIREBASE_DB_URL}/config/weather_key.json", timeout=5)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return ""
+
+USER_CITY_QUERIES = {
+    "Ufuk Çelen": {"query": "Istanbul", "name": "İstanbul"},
+    "Cem Yıldırım": {"query": "Ankara", "name": "Ankara"},
+    "Mustafa Yiğit Kızılel": {"query": "Denizli", "name": "Denizli"},
+    "Kadir Tekin": {"query": "Yalova", "name": "Yalova"},
+    "Yağız Pekdemir": {"query": "Sakarya", "name": "Sakarya"},
+    "Burhan Mutlugöz": {"query": "Nagold,Germany", "name": "Nagold (Almanya)"}
+}
+
+def hava_durumunu_guncelle():
+    """Tüm kullanıcılar için Weatherstack API'sinden hava durumunu çeker ve Firebase'e kaydeder."""
+    api_key = get_weatherstack_api_key()
+    if not api_key:
+        return
+
+    weather_results = {}
+    for user, info in USER_CITY_QUERIES.items():
+        try:
+            url = f"http://api.weatherstack.com/current?access_key={api_key}&query={info['query']}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+            if r.status_code == 200:
+                d = r.json()
+                if "current" in d:
+                    curr = d["current"]
+                    weather_results[user] = {
+                        "sehir": info["name"],
+                        "sicaklik": curr.get("temperature"),
+                        "hissedilen": curr.get("feelslike"),
+                        "durum": curr.get("weather_descriptions", [""])[0],
+                        "icon": curr.get("weather_icons", [""])[0],
+                        "nem": curr.get("humidity"),
+                        "ruzgar": curr.get("wind_speed"),
+                        "son_guncelleme": int(time.time())
+                    }
+            time.sleep(1.0)
+        except Exception:
+            pass
+    if weather_results:
+        try:
+            requests.put(f"{FIREBASE_DB_URL}/weather.json", json=weather_results, timeout=8)
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🌤️ Hava durumu güncellendi (6 şehir).")
+        except Exception:
+            pass
+
 def start_daemon_listener(poll_interval=3.0):
     """
     Firebase Realtime Database takvim tablosunu ve yerel takvim.txt dosyasını
     sürekli izleyerek Google Takvim'i arka planda otomatik güncel tutar.
+    Ayrıca her 30 dakikada bir hava durumunu yeniler.
     """
     print(f"🚀 Corvus Google Takvim Senkronizasyon Ajanı başlatıldı...")
     print(f"📅 Hedef Takvim: '{CALENDAR_NAME}' (Google ID: {GOOGLE_CALENDAR_ID})")
     print(f"⏱️ Kontrol sıklığı: {poll_interval} saniye")
 
     son_hash = None
+    son_hava_durumu_zamani = 0
+
     while True:
+        simdi = time.time()
+        # Her 30 dakikada bir (1800 sn) hava durumunu arka planda güncelle
+        if simdi - son_hava_durumu_zamani >= 1800:
+            son_hava_durumu_zamani = simdi
+            try:
+                hava_durumunu_guncelle()
+            except Exception:
+                pass
+
         try:
             # 1. Firebase RTDB kontrol
             r = requests.get(f"{FIREBASE_DB_URL}/takvim.json?t={int(time.time()*1000)}", timeout=3.0)

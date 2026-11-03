@@ -4,13 +4,43 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.5.1";
+const APP_VERSION = "1.5.2";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
 const STORAGE_KEY_TAKVIM = "corvus_web_takvim";
 const STORAGE_KEY_USER = "corvus_web_user";
 const STORAGE_KEY_AUTH = "corvus_auth_session";
+
+// Kullanıcı Şehir Eşleştirmesi (Weatherstack Hava Durumu)
+const USER_CITY_MAP = {
+  "Ufuk Çelen": { cityKey: "Istanbul", displayName: "İstanbul" },
+  "Cem Yıldırım": { cityKey: "Ankara", displayName: "Ankara" },
+  "Mustafa Yiğit Kızılel": { cityKey: "Denizli", displayName: "Denizli" },
+  "Kadir Tekin": { cityKey: "Yalova", displayName: "Yalova" },
+  "Yağız Pekdemir": { cityKey: "Sakarya", displayName: "Sakarya" },
+  "Burhan Mutlugöz": { cityKey: "Nagold,Germany", displayName: "Nagold (Almanya)" }
+};
+
+const WEATHER_DESC_TR = {
+  "sunny": "Güneşli",
+  "clear": "Açık",
+  "partly cloudy": "Parçalı Bulutlu",
+  "cloudy": "Bulutlu",
+  "overcast": "Kapalı / Bulutlu",
+  "patchy rain possible": "Yer Yer Yağmurlu",
+  "patchy light rain": "Hafif Yağmurlu",
+  "light rain": "Hafif Yağmurlu",
+  "moderate rain": "Orta Şiddetli Yağmur",
+  "heavy rain": "Kuvvetli Yağmurlu",
+  "rain": "Yağmurlu",
+  "thunderstorm": "Gök Gürültülü Fırtına",
+  "snow": "Karlı",
+  "fog": "Sisli",
+  "mist": "Puslu"
+};
+
+let currentWeatherCache = null;
 let GEMINI_API_KEY = localStorage.getItem("corvus_gemini_api_key") || "";
 
 async function getGeminiApiKey() {
@@ -126,6 +156,8 @@ document.addEventListener("DOMContentLoaded", () => {
   checkGeminiAiAutoRun();
   updateClock();
   setInterval(updateClock, 1000);
+  loadAndDisplayWeather();
+  setInterval(loadAndDisplayWeather, 600000);
 });
 
 // 1. Oturum & Rol Yetkilendirme Yönetimi
@@ -211,6 +243,9 @@ function applyRolePermissions() {
       roleElem.className = "role-badge badge-user";
     }
   }
+
+  // 4. Kullanıcıya özel şehir hava durumunu güncelle
+  loadAndDisplayWeather();
 
   // 4. Chat aktif kullanıcı bilgisi
   const chatLabel = document.getElementById("chatActiveUserLabel");
@@ -1202,6 +1237,12 @@ function setupEventListeners() {
   const btnParseAdd = document.getElementById("btnGeminiParseAdd");
   if (btnParseAdd) {
     btnParseAdd.addEventListener("click", () => handleGeminiParseAdd());
+  }
+
+  // Canlı Hava Durumu Rozetine Tıklama (Detay Göster / Yenile)
+  const weatherBadge = document.getElementById("btnWeatherBadge");
+  if (weatherBadge) {
+    weatherBadge.addEventListener("click", () => loadAndDisplayWeather(true));
   }
 
   // Karşılaşmalar Açılır Filtre Menüsü Kontrolleri
@@ -3098,6 +3139,61 @@ async function sendChatMessage(e) {
     chatState.isSending = false;
     if (sendBtn) sendBtn.disabled = false;
   }
+}
+
+// 9.5. CANLİ HAVA DURUMU (WEATHERSTACK) YÖNETİMİ
+function getWeatherEmoji(desc) {
+  if (!desc) return "🌤️";
+  const d = desc.toLowerCase().trim();
+  if (d.includes("sun") || d.includes("clear") || d.includes("açık") || d.includes("güneş")) return "☀️";
+  if (d.includes("partly") || d.includes("parçalı")) return "⛅";
+  if (d.includes("overcast") || d.includes("cloud") || d.includes("bulut") || d.includes("kapalı")) return "☁️";
+  if (d.includes("thunder") || d.includes("fırtına")) return "⛈️";
+  if (d.includes("snow") || d.includes("kar")) return "❄️";
+  if (d.includes("fog") || d.includes("mist") || d.includes("sis") || d.includes("pus")) return "🌫️";
+  if (d.includes("rain") || d.includes("drizzle") || d.includes("yağmur")) return "🌧️";
+  return "🌤️";
+}
+
+async function loadAndDisplayWeather(showToastOnClick = false) {
+  const iconElem = document.getElementById("weatherIcon");
+  const cityElem = document.getElementById("weatherCity");
+  const tempElem = document.getElementById("weatherTemp");
+  const badgeElem = document.getElementById("btnWeatherBadge");
+  if (!badgeElem) return;
+
+  const userName = state.currentUser || "Ufuk Çelen";
+  const userCity = USER_CITY_MAP[userName] || { cityKey: "Istanbul", displayName: "İstanbul" };
+
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/weather/${encodeURIComponent(userName)}.json?t=${Date.now()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.sicaklik !== undefined) {
+        currentWeatherCache = data;
+        const durumRaw = (data.durum || "").trim();
+        const durumTr = WEATHER_DESC_TR[durumRaw.toLowerCase()] || durumRaw || "Açık";
+        const emoji = getWeatherEmoji(durumRaw);
+
+        if (iconElem) iconElem.textContent = emoji;
+        if (cityElem) cityElem.textContent = data.sehir || userCity.displayName;
+        if (tempElem) tempElem.textContent = `${data.sicaklik}°C`;
+
+        const tooltip = `${data.sehir}: ${data.sicaklik}°C (${durumTr}) • Hissedilen: ${data.hissedilen ?? data.sicaklik}°C • Nem: %${data.nem ?? "-"} • Rüzgar: ${data.ruzgar ?? "-"} km/s`;
+        badgeElem.title = `${tooltip} (Detay için tıklayın)`;
+
+        if (showToastOnClick) {
+          showToast(`🌤️ ${data.sehir}: ${data.sicaklik}°C (${durumTr}) • Hissedilen: ${data.hissedilen}°C • Nem: %${data.nem} • Rüzgar: ${data.ruzgar} km/s`, "info");
+        }
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("Hava durumu yükleme hatası:", err);
+  }
+
+  // Varsayılan / Fallback
+  if (cityElem) cityElem.textContent = userCity.displayName;
 }
 
 // 10. Canlı Saat

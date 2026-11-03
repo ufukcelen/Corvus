@@ -2161,3 +2161,39 @@ body {
   padding: 0 12px;
 }
 
+/* =====================================================================
+   CANLI HAVA DURUMU (WEATHERSTACK) ROZET STİLLERİ
+   ===================================================================== */
+.weather-badge {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  color: #7dd3fc;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.88rem;
+  user-select: none;
+}
+
+.weather-badge:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: rgba(14, 165, 233, 0.55);
+  box-shadow: 0 0 16px rgba(14, 165, 233, 0.25);
+  transform: translateY(-1px);
+}
+
+.weather-badge:active {
+  transform: translateY(0);
+}
+
+.weather-temp {
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+
