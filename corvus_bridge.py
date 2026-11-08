@@ -363,12 +363,19 @@ def cmd_fc_kariyer(args, corvus, p_dir):
         corvus.fc_logo_hazirla(eslesen[0]["logo"])
 
     klasor = corvus.cikti_klasoru_al("FC27 Kariyer")
-    corvus.fc27_txt_yaz(takim, klasor)
-    
-    if args.render:
-        video_adi = corvus.FC_VIDEO_ADI
-        print(f"[Corvus Mac] Render başlatılıyor: {video_adi} -> {klasor}")
-        corvus.ae_render_baslat(video_adi, proje_yolu=corvus.FC_PROJE_YOLU, kompozisyon=corvus.FC_KOMPOZISYON, hedef_klasor=klasor)
+    if hasattr(args, "saat") and args.saat:
+        corvus.fc27_saat_yaz(args.saat)
+        corvus.fc27_zamanli_txt_yaz(takim, args.saat, klasor)
+        if args.render:
+            video_adi = corvus.FC_ZAMANLI_VIDEO_ADI
+            print(f"[Corvus Mac] Zamanlı Render başlatılıyor: {video_adi} -> {klasor}")
+            corvus.ae_render_baslat(video_adi, proje_yolu=corvus.FC_ZAMANLI_PROJE_YOLU, kompozisyon=corvus.FC_ZAMANLI_KOMPOZISYON, hedef_klasor=klasor)
+    else:
+        corvus.fc27_txt_yaz(takim, klasor)
+        if args.render:
+            video_adi = corvus.FC_VIDEO_ADI
+            print(f"[Corvus Mac] Render başlatılıyor: {video_adi} -> {klasor}")
+            corvus.ae_render_baslat(video_adi, proje_yolu=corvus.FC_PROJE_YOLU, kompozisyon=corvus.FC_KOMPOZISYON, hedef_klasor=klasor)
 
 
 def main():
@@ -429,6 +436,7 @@ def main():
     # fc_kariyer
     p_fc = subparsers.add_parser("fc_kariyer")
     p_fc.add_argument("--takim", default="Feyenoord")
+    p_fc.add_argument("--saat", default=None, help="Yayın saati (verilirse zamanlı render alınır)")
     p_fc.add_argument("--render", action="store_true")
 
     args = parser.parse_args()
