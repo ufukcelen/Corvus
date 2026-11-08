@@ -4,7 +4,7 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.5.2";
+const APP_VERSION = "1.5.3";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
@@ -482,6 +482,9 @@ function renderCalendar() {
               📅
             </button>
             ${state.userRole === "yonetici" ? "" : `
+              <button class="action-icon-btn edit-btn" title="Yayını Düzenle (✏️)" onclick="openEditBroadcastModal(${item.index})">
+                ✏️
+              </button>
               <button class="action-icon-btn delete-btn" title="Yayını Takvimden Sil" onclick="silYayin(${item.index})">
                 🗑️
               </button>
@@ -552,6 +555,67 @@ function yeniYayinKaydet(e) {
   // Ntfy üzerinden buluta ve masaüstü Corvus'a aktar!
   yayinlariBulutaGonder(`${state.currentUser} webden yeni yayın ekledi: ${program}`);
   showToast(`✓ "${program}" yayını takvime eklendi ve Google Takvim ile otomatik eşitleniyor! 📅`, "success");
+}
+
+// 5b. Düzenlenen Yayını Kaydetme (Edit)
+function editYayinKaydet(e) {
+  e.preventDefault();
+  if (state.userRole === "yonetici") {
+    showToast("Yayın düzenleme yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
+
+  const indexInput = document.getElementById("editBroadcastIndex");
+  const index = parseInt(indexInput ? indexInput.value : "-1", 10);
+  if (isNaN(index) || index < 0 || index >= state.yayinlar.length) {
+    showToast("Geçersiz yayın seçimi.", "danger");
+    return;
+  }
+
+  const oldItem = parseYayinSatiri(state.yayinlar[index], index);
+  const selectElem = document.getElementById("editInputProgramSelect");
+  let program = selectElem ? selectElem.value.trim() : "";
+  if (program === "__CUSTOM__") {
+    const customInput = document.getElementById("editInputCustomProgram");
+    program = customInput ? customInput.value.trim() : "";
+  }
+  const gun = document.getElementById("editInputGun").value.trim();
+  const saat = document.getElementById("editInputSaat").value.trim();
+  const durum = document.getElementById("editInputDurum").value;
+  const bilgi = document.getElementById("editInputBilgi").value.trim();
+
+  if (!program || !gun || !saat) {
+    showToast("Lütfen program, gün ve saat alanlarını eksiksiz doldurun.", "warning");
+    return;
+  }
+
+  // Sıra numarasını koru (örn: 1, 2, 3...)
+  const no = oldItem.no || (index + 1);
+
+  // Durum sembolü
+  let statusSymbol = "";
+  if (durum === "done") {
+    statusSymbol = " ✅";
+  } else if (durum === "canceled") {
+    statusSymbol = " ❌";
+  }
+
+  let yeniSatir = `${no}-) ${program} - ${gun} - ${saat}`;
+  if (bilgi) {
+    yeniSatir += ` | Bilgi: ${bilgi}`;
+  }
+  yeniSatir += statusSymbol;
+
+  // State'i güncelle
+  state.yayinlar[index] = yeniSatir;
+  kaydetYerel();
+  renderCalendar();
+  updateStats();
+  closeEditModal();
+
+  // Ntfy & Firebase üzerinden senkronize et
+  yayinlariBulutaGonder(`${state.currentUser} webden yayını düzenledi: ${program}`);
+  showToast(`✏️ "${program}" yayını başarıyla güncellendi ve Google Takvim ile eşitleniyor!`, "success");
 }
 
 // 6. Yayın Durumu Değiştirme (Tamamla / İptal)
@@ -1187,6 +1251,29 @@ function setupEventListeners() {
     });
   }
 
+  // Düzenleme (Edit) Modalı Kontrolleri
+  const closeEditModalBtn = document.getElementById("closeEditModalBtn");
+  const cancelEditModalBtn = document.getElementById("cancelEditModalBtn");
+  const editModalOverlay = document.getElementById("editBroadcastModal");
+  const editForm = document.getElementById("editBroadcastForm");
+
+  if (closeEditModalBtn) closeEditModalBtn.addEventListener("click", closeEditModal);
+  if (cancelEditModalBtn) cancelEditModalBtn.addEventListener("click", closeEditModal);
+  if (editModalOverlay) {
+    editModalOverlay.addEventListener("click", (e) => {
+      if (e.target === editModalOverlay) closeEditModal();
+    });
+  }
+  if (editForm) {
+    editForm.addEventListener("submit", editYayinKaydet);
+    editForm.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") {
+        e.preventDefault();
+        editForm.requestSubmit();
+      }
+    });
+  }
+
   // Manuel Yenile Butonu
   const syncBtn = document.getElementById("manualSyncBtn");
   if (syncBtn) syncBtn.addEventListener("click", () => senkronizeEtUzak(true));
@@ -1365,10 +1452,8 @@ function onProgramSelectChange() {
   }
 }
 
-function setupGunOptions() {
-  const gunSelect = document.getElementById("inputGun");
-  if (!gunSelect) return;
-
+function populateGunOptionsHelper(selectElem) {
+  if (!selectElem) return;
   const now = new Date();
   let optionsHtml = "";
 
@@ -1395,7 +1480,14 @@ function setupGunOptions() {
   });
   optionsHtml += `</optgroup>`;
 
-  gunSelect.innerHTML = optionsHtml;
+  selectElem.innerHTML = optionsHtml;
+}
+
+function setupGunOptions() {
+  const gunSelect = document.getElementById("inputGun");
+  const editGunSelect = document.getElementById("editInputGun");
+  if (gunSelect) populateGunOptionsHelper(gunSelect);
+  if (editGunSelect) populateGunOptionsHelper(editGunSelect);
 }
 
 function openAddModal(resetProgram = true) {
@@ -1417,6 +1509,134 @@ function openAddModal(resetProgram = true) {
 function closeAddModal() {
   const modal = document.getElementById("addBroadcastModal");
   if (modal) modal.classList.remove("open");
+}
+
+// ---------------------------------------------------------------------
+// YAYIN DÜZENLEME (EDIT) MODAL FONKSİYONLARI
+// ---------------------------------------------------------------------
+function openEditBroadcastModal(index) {
+  if (state.userRole === "yonetici") {
+    showToast("Yayın düzenleme yetkiniz bulunmamaktadır.", "warning");
+    return;
+  }
+  if (index < 0 || index >= state.yayinlar.length) return;
+
+  const item = parseYayinSatiri(state.yayinlar[index], index);
+  const modal = document.getElementById("editBroadcastModal");
+  if (!modal) return;
+
+  const indexInput = document.getElementById("editBroadcastIndex");
+  const kanalSelect = document.getElementById("editInputKanal");
+  const saatInput = document.getElementById("editInputSaat");
+  const durumSelect = document.getElementById("editInputDurum");
+  const bilgiInput = document.getElementById("editInputBilgi");
+  const gunSelect = document.getElementById("editInputGun");
+
+  if (indexInput) indexInput.value = index;
+  if (kanalSelect) kanalSelect.value = item.kanal;
+
+  // Program listesini ve seçimini hazırla
+  guncelleEditProgramListesi(item.yayinAdi);
+
+  // Gün seçeneklerini hazırla ve seç
+  if (gunSelect) {
+    if (!gunSelect.options || gunSelect.options.length === 0) {
+      populateGunOptionsHelper(gunSelect);
+    }
+    let exists = false;
+    for (let i = 0; i < gunSelect.options.length; i++) {
+      if (gunSelect.options[i].value === item.gun) {
+        exists = true;
+        break;
+      }
+    }
+    if (!exists && item.gun) {
+      const customOpt = document.createElement("option");
+      customOpt.value = item.gun;
+      customOpt.textContent = `📅 ${item.gun}`;
+      gunSelect.insertBefore(customOpt, gunSelect.firstChild);
+    }
+    gunSelect.value = item.gun;
+  }
+
+  // Saat
+  if (saatInput) saatInput.value = item.saat || "20:00";
+
+  // Durum
+  if (durumSelect) {
+    if (item.isDone) {
+      durumSelect.value = "done";
+    } else if (item.isCanceled) {
+      durumSelect.value = "canceled";
+    } else {
+      durumSelect.value = "planned";
+    }
+  }
+
+  // Bilgi
+  if (bilgiInput) bilgiInput.value = item.bilgi || "";
+
+  modal.classList.add("open");
+}
+
+function closeEditModal() {
+  const modal = document.getElementById("editBroadcastModal");
+  if (modal) modal.classList.remove("open");
+}
+
+function guncelleEditProgramListesi(targetProgramName = null) {
+  const kanalSelect = document.getElementById("editInputKanal");
+  const programSelect = document.getElementById("editInputProgramSelect");
+  const customGroup = document.getElementById("editCustomProgramGroup");
+  const customInput = document.getElementById("editInputCustomProgram");
+  const saatInput = document.getElementById("editInputSaat");
+  if (!kanalSelect || !programSelect) return;
+
+  const secilenKanal = kanalSelect.value || "Uykusuz Tosba";
+  const programlar = KANAL_PROGRAMLARI[secilenKanal] || [];
+
+  let optionsHtml = programlar.map((p, idx) => {
+    return `<option value="${escapeHtml(p.ad)}" data-saat="${p.saat}">${idx + 1}. ${escapeHtml(p.ad)}</option>`;
+  }).join("");
+
+  optionsHtml += `<option value="__CUSTOM__">✏️ Diğer / Özel Yayın Adı Girin...</option>`;
+  programSelect.innerHTML = optionsHtml;
+
+  if (targetProgramName) {
+    const match = programlar.find(p => p.ad.toLowerCase() === targetProgramName.toLowerCase());
+    if (match) {
+      programSelect.value = match.ad;
+      if (customGroup) customGroup.style.display = "none";
+    } else {
+      programSelect.value = "__CUSTOM__";
+      if (customGroup) customGroup.style.display = "block";
+      if (customInput) customInput.value = targetProgramName;
+    }
+  } else {
+    if (customGroup) customGroup.style.display = "none";
+    if (programlar.length > 0 && saatInput && !saatInput.value) {
+      saatInput.value = programlar[0].saat || "20:00";
+    }
+  }
+}
+
+function onEditProgramSelectChange() {
+  const programSelect = document.getElementById("editInputProgramSelect");
+  const customGroup = document.getElementById("editCustomProgramGroup");
+  const customInput = document.getElementById("editInputCustomProgram");
+  const saatInput = document.getElementById("editInputSaat");
+  if (!programSelect) return;
+
+  if (programSelect.value === "__CUSTOM__") {
+    if (customGroup) customGroup.style.display = "block";
+    if (customInput) customInput.focus();
+  } else {
+    if (customGroup) customGroup.style.display = "none";
+    const secilenOpt = programSelect.options[programSelect.selectedIndex];
+    if (secilenOpt && secilenOpt.dataset.saat && saatInput) {
+      saatInput.value = secilenOpt.dataset.saat;
+    }
+  }
 }
 
 // =====================================================================
@@ -2845,6 +3065,10 @@ function openBroadcastModal(index) {
   modalFooter.innerHTML = `
     <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Kapat</button>
     ${isYonetici ? "" : `
+      <button type="button" class="btn btn-warning" onclick="closeEventModal(); openEditBroadcastModal(${item.index})">
+        <span>✏️</span>
+        <span>Yayını Düzenle</span>
+      </button>
       <button type="button" class="btn btn-danger" onclick="silYayinFromModal(${item.index})">
         <span>🗑️</span>
         <span>Yayını Takvimden Kaldır / Sil</span>

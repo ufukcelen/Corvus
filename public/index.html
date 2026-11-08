@@ -382,6 +382,83 @@
     </div>
   </div>
 
+  <!-- Yayın Düzenleme Modalı -->
+  <div class="modal-overlay" id="editBroadcastModal" role="dialog" aria-modal="true" aria-labelledby="editModalTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="editModalTitle">
+          <span>✏️</span>
+          <span>Yayını Düzenle</span>
+        </h3>
+        <button class="close-btn" id="closeEditModalBtn" aria-label="Kapat">&times;</button>
+      </div>
+
+      <form id="editBroadcastForm">
+        <input type="hidden" id="editBroadcastIndex" value="">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editInputKanal">Kanal</label>
+              <select id="editInputKanal" onchange="guncelleEditProgramListesi()">
+                <option value="Uykusuz Tosba">Uykusuz Tosba</option>
+                <option value="Radio Mocas">Radio Mocas</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="editInputGun">Yayın Günü</label>
+              <select id="editInputGun">
+                <!-- JS ile güncel günler yüklenecek -->
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editInputProgramSelect">Yayın / Program Adı (Listeden Seçin)</label>
+            <select id="editInputProgramSelect" onchange="onEditProgramSelectChange()" required>
+              <!-- JS ile kanala göre dinamik doldurulur -->
+            </select>
+          </div>
+
+          <div class="form-group" id="editCustomProgramGroup" style="display: none;">
+            <label for="editInputCustomProgram">Özel Yayın Adı</label>
+            <input type="text" id="editInputCustomProgram" placeholder="Örn: Özel Canlı Maç Sohbeti">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="editInputSaat">Yayın Saati</label>
+              <input type="text" id="editInputSaat" placeholder="20:00" pattern="^([01]\d|2[0-3]):[0-5]\d$"
+                title="SS:DD formatında olmalıdır (Örn: 20:30)" required>
+            </div>
+
+            <div class="form-group">
+              <label for="editInputDurum">Yayın Durumu</label>
+              <select id="editInputDurum">
+                <option value="planned">⏳ Planlandı (Bekliyor)</option>
+                <option value="done">✓ Duyuruldu / Tamamlandı (✅)</option>
+                <option value="canceled">✕ İptal Edildi (❌)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="editInputBilgi">Ek Not / Bilgi (İsteğe Bağlı)</label>
+            <input type="text" id="editInputBilgi" placeholder="Örn: Derbi Özel Yayını, Canlı">
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="cancelEditModalBtn">İptal</button>
+          <button type="submit" class="btn btn-primary" id="saveEditBroadcastBtn">
+            <span>💾</span>
+            <span>Değişiklikleri Kaydet & Eşitle</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Etkinlik & Maç Detay Modalı (Takvimden Kaldırma & Yayın Ekleme) -->
   <div class="modal-overlay" id="eventActionModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
     <div class="modal-box event-modal-box">
@@ -517,7 +594,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Scripts -->
-  <script src="app.js?v=1.5.2"></script>
+  <script src="app.js?v=1.5.3"></script>
 </body>
 
 </html>
