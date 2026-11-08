@@ -1179,7 +1179,7 @@ def tek_mac_yatanlar_yap():
 
 FC27_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın başladı!
 
-📺 {takim} kariyerimizi SADECE YouTube'da!
+📺 {takim} kariyerimiz SADECE YouTube'da!
 👉 YouTube: Uykusuz Tosba (/uykusuztosba)
 
 #FC27 {etiket} #KariyerModu #UykusuzTosba #EAFC27
@@ -1187,7 +1187,7 @@ FC27_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın başladı!
 
 FC27_ZAMANLI_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın saati bu akşam : {saat}!
 
-📺 {takim} kariyerimizi SADECE YouTube'da!
+📺 {takim} kariyerimiz SADECE YouTube'da!
 👉 YouTube: Uykusuz Tosba (/uykusuztosba)
 
 #FC27 {etiket} #KariyerModu #UykusuzTosba #EAFC27
