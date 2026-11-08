@@ -38,8 +38,13 @@ console = Console()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SURUM = "1.5.0"
+SURUM = "1.5.1"
 SURUM_NOTLARI = {
+    "1.5.1": [
+        "FC27 Kariyer İkili Duyuru Modu: 'Şimdi Yayında' ve 'Yayın Saati Ver (Bu Akşam)' seçenekleri eklendi.",
+        "Zamanlı FC27 Render Entegrasyonu: 'fc27kariyerDuyZamanlı.aep' (fc27zaman kompozisyonu) ve 'fc27saat.json' otomatik saat güncellemesi bağlandı.",
+        "Masaüstü fc27buaksam Çıktısı: Zamanlı duyuru için fc27buaksam.mp4 videosu ve fc27buaksam.txt SEO metni üretimi eklendi.",
+    ],
     "1.5.0": [
         "Photoshop Thumbnail Merkezi: Filtresiz Memleket, Canlı Maç ve Haftalık Program için tam otomatik PSD kapağı üretimi.",
         "TV Yayın Standardında Optik Dengeleme: Dairesel ve oval/yıldızlı armaların (GS, Konya vb.) görsel ağırlık ve yatay merkez (Center-Y) uyumu tamamlandı.",
@@ -169,6 +174,7 @@ SEED_YOLLARI = {
     "Albert/albert.json",
     "FC Kariyer Duyuru/Assets/takımlogo.png",
     "FC Kariyer Duyuru/kariyer_takim.json",
+    "FC Kariyer Duyuru/fc27saat.json",
     "Memleket Duyuru/yayınSub.png",
     "Memleket Duyuru/mem_yayin_saati.json",
     "Tekmaç/Assets/tmyGorsel.png",
@@ -371,11 +377,15 @@ FC_DIR = os.path.join(SCRIPT_DIR, "FC Kariyer Duyuru")
 FC_ASSETS_DIR = os.path.join(FC_DIR, "Assets")
 FC_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuy.aep")
 FC_KOMPOZISYON = "fc27sahne"
+FC_ZAMANLI_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuyZamanlı.aep")
+FC_ZAMANLI_KOMPOZISYON = "fc27zaman"
+FC_SAAT_DOSYASI = os.path.join(FC_DIR, "fc27saat.json")
 FC_LOGO_YOLU = os.path.join(FC_ASSETS_DIR, "takımlogo.png")
 FC_TAKIM_DOSYASI = os.path.join(FC_DIR, "kariyer_takim.json") 
 FC_VARSAYILAN_TAKIM = "Feyenoord"
 FC_LOGO_BOYUT = (203, 195) 
 FC_VIDEO_ADI = "fc27Duyuru.mp4"
+FC_ZAMANLI_VIDEO_ADI = "fc27buaksam.mp4"
 MASAUSTU = os.path.expanduser("~/Desktop")
 
 TURKCE_AYLAR = {
@@ -1175,6 +1185,14 @@ FC27_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın başladı!
 #FC27 {etiket} #KariyerModu #UykusuzTosba #EAFC27
 """
 
+FC27_ZAMANLI_SEO_SABLON = """Fc27 {takim} kariyeri canlı yayın saati bu akşam : {saat}!
+
+📺 {takim} kariyerimizi SADECE YouTube'da!
+👉 YouTube: Uykusuz Tosba (/uykusuztosba)
+
+#FC27 {etiket} #KariyerModu #UykusuzTosba #EAFC27
+"""
+
 
 def ascii_norm(metin):
     metin = metin.replace("İ", "I").replace("ı", "i")
@@ -1284,18 +1302,60 @@ def fc_logo_hazirla(url):
     tuval.save(FC_LOGO_YOLU, format="PNG")
 
 
+def fc27_saat_oku():
+    try:
+        if os.path.exists(FC_SAAT_DOSYASI):
+            with open(FC_SAAT_DOSYASI, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                val = d.get("baslik")
+                if val and isinstance(val, str) and val.strip():
+                    return val.strip()
+    except Exception:
+        pass
+    return "22:45"
+
+
+def fc27_saat_yaz(saat):
+    try:
+        with open(FC_SAAT_DOSYASI, "w", encoding="utf-8") as f:
+            json.dump({"baslik": saat}, f, ensure_ascii=False)
+        console.print(f"[bold cyan][BİLGİ][/bold cyan] fc27saat.json güncellendi: {saat}")
+    except Exception as e:
+        console.print(f"[bold red][HATA][/bold red] fc27saat.json yazılamadı: {e}")
+
+
 def fc27_txt_yaz(takim, hedef_klasor=None):
     icerik = FC27_SEO_SABLON.format(takim=takim, etiket=hashtag_yap(takim))
     icerik += "\n\n\n-Cem'i etiketle\n\n-FC27 soundtracklerinden bir müzik seç\n"
     seo_yaz("fc27Duyuru.txt", icerik, hedef_klasor=hedef_klasor)
 
 
+def fc27_zamanli_txt_yaz(takim, saat, hedef_klasor=None):
+    icerik = FC27_ZAMANLI_SEO_SABLON.format(takim=takim, saat=saat, etiket=hashtag_yap(takim))
+    icerik += "\n\n\n-Cem'i etiketle\n\n-FC27 soundtracklerinden bir müzik seç\n"
+    seo_yaz("fc27buaksam.txt", icerik, hedef_klasor=hedef_klasor)
+
+
 def fc27_kariyer_yap():
     if not os.path.isdir(FC_ASSETS_DIR):
         console.print(f"[bold red][HATA][/bold red] Assets klasörü bulunamadı: {FC_ASSETS_DIR}")
         return
-    if not os.path.exists(FC_PROJE_YOLU):
-        console.print(f"[bold red][HATA][/bold red] After Effects projesi bulunamadı: {FC_PROJE_YOLU}")
+
+    console.print("\n")
+    menu = """[bold cyan]1.[/bold cyan] Şimdi Yayında (Canlı Yayın Başladı)
+[bold cyan]2.[/bold cyan] Yayın Saati Ver (Bu Akşam)
+[bold cyan]3.[/bold cyan] Geri"""
+    console.print(Panel(menu, title="[bold yellow]🎮 FC27 Kariyer Duyuru Modu[/bold yellow]", expand=False))
+
+    mod_secim = Prompt.ask("[bold green]Duyuru modunu seçin[/bold green]", choices=["1", "2", "3"], default="1")
+    if mod_secim == "3":
+        return
+
+    is_zamanli = (mod_secim == "2")
+    hedef_proje = FC_ZAMANLI_PROJE_YOLU if is_zamanli else FC_PROJE_YOLU
+
+    if not os.path.exists(hedef_proje):
+        console.print(f"[bold red][HATA][/bold red] After Effects projesi bulunamadı: {hedef_proje}")
         return
 
     kayitli = fc_takim_oku()
@@ -1319,12 +1379,38 @@ def fc27_kariyer_yap():
             return
 
     klasor = cikti_klasoru_al("FC27 Kariyer")
-    console.print("[bold yellow][NOT][/bold yellow] Bu yayın duyurusu, yayın başladıktan sonra yapılır.")
-    if Confirm.ask("[bold yellow]Render başlatılsın mı?[/bold yellow]"):
-        fc27_txt_yaz(takim, hedef_klasor=klasor)
-        ae_render_baslat(FC_VIDEO_ADI, proje_yolu=FC_PROJE_YOLU, kompozisyon=FC_KOMPOZISYON, hedef_klasor=klasor)
+
+    if not is_zamanli:
+        console.print("[bold yellow][NOT][/bold yellow] Bu yayın duyurusu, yayın başladıktan sonra yapılır.")
+        if Confirm.ask("[bold yellow]Render başlatılsın mı?[/bold yellow]"):
+            fc27_txt_yaz(takim, hedef_klasor=klasor)
+            ae_render_baslat(FC_VIDEO_ADI, proje_yolu=FC_PROJE_YOLU, kompozisyon=FC_KOMPOZISYON, hedef_klasor=klasor)
+        else:
+            console.print("[dim]Render atlandı.[/dim]")
     else:
-        console.print("[dim]Render atlandı.[/dim]")
+        varsayilan_saat = fc27_saat_oku()
+        try:
+            takvim_satirlari = takvim_oku()
+            for satir in takvim_satirlari:
+                if "fc27" in satir.lower() or "kariyer" in satir.lower():
+                    parts = satir.split(" - ")
+                    if len(parts) >= 3:
+                        saat_parcasi = parts[-1].split("|")[0].replace("✅", "").replace("❌", "").strip()
+                        if re.fullmatch(r"\d{1,2}:\d{2}", saat_parcasi):
+                            varsayilan_saat = saat_parcasi
+                            break
+        except Exception:
+            pass
+
+        nihai_saat = saat_al("Yayın Saati kaçta? (Örn: 22:45)", default=varsayilan_saat)
+        fc27_saat_yaz(nihai_saat)
+
+        console.print(f"[bold cyan][BİLGİ][/bold cyan] Yayın saati [bold yellow]{nihai_saat}[/bold yellow] olarak ayarlandı.")
+        if Confirm.ask("[bold yellow]Render başlatılsın mı?[/bold yellow]"):
+            fc27_zamanli_txt_yaz(takim, nihai_saat, hedef_klasor=klasor)
+            ae_render_baslat(FC_ZAMANLI_VIDEO_ADI, proje_yolu=FC_ZAMANLI_PROJE_YOLU, kompozisyon=FC_ZAMANLI_KOMPOZISYON, hedef_klasor=klasor)
+        else:
+            console.print("[dim]Render atlandı.[/dim]")
 
 
 # =====================================================================
