@@ -369,7 +369,8 @@ def cmd_fc_kariyer(args, corvus, p_dir):
     if hasattr(corvus, "cikti_klasoru_al"):
         klasor = corvus.cikti_klasoru_al("FC27 Kariyer")
     else:
-        klasor = os.path.join(os.path.expanduser("~/Desktop"), f"{datetime.now().strftime("%d %B")}_FC27 Kariyer")
+        bugun_str = datetime.now().strftime("%d %B")
+        klasor = os.path.join(os.path.expanduser("~/Desktop"), f"{bugun_str}_FC27 Kariyer")
     os.makedirs(klasor, exist_ok=True)
 
     if hasattr(args, "saat") and args.saat:
@@ -391,10 +392,7 @@ def cmd_fc_kariyer(args, corvus, p_dir):
             txt_yolu = os.path.join(klasor, txt_adi)
             try:
                 with open(txt_yolu, "w", encoding="utf-8") as f:
-                    f.write(f"- FC27 Kariyer Duyuru -
-Takım: {takim}
-Saat: {args.saat}
-")
+                    f.write(f"- FC27 Kariyer Duyuru -\nTakım: {takim}\nSaat: {args.saat}\n")
             except Exception:
                 pass
 
