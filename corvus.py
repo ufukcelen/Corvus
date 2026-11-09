@@ -377,7 +377,7 @@ FC_DIR = os.path.join(SCRIPT_DIR, "FC Kariyer Duyuru")
 FC_ASSETS_DIR = os.path.join(FC_DIR, "Assets")
 FC_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuy.aep")
 FC_KOMPOZISYON = "fc27sahne"
-FC_ZAMANLI_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuyZamanlı.aep")
+FC_ZAMANLI_PROJE_YOLU = os.path.join(FC_DIR, "fc27kariyerDuyZamanli.aep") if os.path.exists(os.path.join(FC_DIR, "fc27kariyerDuyZamanli.aep")) else os.path.join(FC_DIR, "fc27kariyerDuyZamanlı.aep")
 FC_ZAMANLI_KOMPOZISYON = "fc27zaman"
 FC_SAAT_DOSYASI = os.path.join(FC_DIR, "fc27saat.json")
 FC_LOGO_YOLU = os.path.join(FC_ASSETS_DIR, "takımlogo.png")
@@ -501,6 +501,26 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None, hedef_klasor=
         console.print(f"\n[bold red][CRITICAL HATA][/bold red] aerender motoru bulunamadı! Yol: {AERENDER_YOLU}")
         return
 
+    # Proje yolu varlık ve Türkçe/Unicode normalizasyon kontrolü
+    if not os.path.exists(proje_yolu):
+        proje_dizin = os.path.dirname(proje_yolu)
+        proje_ad = os.path.basename(proje_yolu)
+        alternatifler = [
+            proje_ad.replace("ı", "i").replace("I", "I"),
+            unicodedata.normalize("NFD", proje_ad),
+            unicodedata.normalize("NFC", proje_ad)
+        ]
+        bulundu = False
+        for alt in alternatifler:
+            alt_yol = os.path.join(proje_dizin, alt)
+            if os.path.exists(alt_yol):
+                proje_yolu = alt_yol
+                bulundu = True
+                break
+        if not bulundu:
+            console.print(f"\n[bold red][HATA][/bold red] After Effects projesi bulunamadı: {proje_yolu}")
+            return
+
     hedef_dizin = hedef_klasor or MASAUSTU
     os.makedirs(hedef_dizin, exist_ok=True)
     cikis_yolu = os.path.join(hedef_dizin, cikis_adi)
@@ -512,29 +532,58 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None, hedef_klasor=
 
     console.print(Panel(f"[cyan]Proje:[/cyan] {os.path.basename(proje_yolu)}\n[cyan]Comp:[/cyan] {kompozisyon}\n[cyan]Hedef:[/cyan] {cikis_yolu}", title="[bold yellow]Render Başlatılıyor", expand=False))
     
-    komut = [AERENDER_YOLU, "-project", proje_yolu, "-comp", kompozisyon, "-OMtemplate", CIKTI_SABLONU, "-output", cikis_yolu]
-    
-    try:
-        process = subprocess.Popen(komut, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+    # macOS Metal / CoreAnimation thread assertion çökmesini önleme
+    env = os.environ.copy()
+    env["CA_ASSERT_MAIN_THREAD_TRANSACTIONS"] = "0"
+    proje_dizini = os.path.dirname(os.path.abspath(proje_yolu))
+
+    def _render_calistir(om_sablonu):
+        komut = [AERENDER_YOLU, "-project", proje_yolu, "-comp", kompozisyon]
+        if om_sablonu:
+            komut += ["-OMtemplate", om_sablonu]
+        komut += ["-output", cikis_yolu]
         
-        console.print("[dim]Render Motoru Logları (Sadece İlerleme):[/dim]")
-        for satir in iter(process.stdout.readline, ''):
-            if "PROGRESS:" in satir:
-                console.print(f"[bold blue]{satir.strip()}[/bold blue]")
-            elif any(k in satir.lower() for k in ("warning", "error")):
-                console.print(f"[bold yellow]{escape(satir.strip())}[/bold yellow]")
-                
-        process.stdout.close()
-        return_code = process.wait()
-        
-        if os.path.exists(cikis_yolu):
-            console.print(f"\n[bold green][BAŞARILI][/bold green] Video kaydedildi: {cikis_yolu}")
-            ses_cal()
-        else:
-            console.print(f"\n[bold red][HATA][/bold red] İşlem bitti ama dosya oluşmadı. Şablon veya Comp adı yanlış olabilir.")
+        sablon_hatasi = False
+        try:
+            process = subprocess.Popen(
+                komut,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                cwd=proje_dizini
+            )
             
-    except Exception as e:
-        console.print(f"\n[bold red][HATA][/bold red] Çökme yaşandı: {e}")
+            console.print("[dim]Render Motoru Logları (Sadece İlerleme):[/dim]")
+            for satir in iter(process.stdout.readline, ""):
+                if "PROGRESS:" in satir:
+                    console.print(f"[bold blue]{satir.strip()}[/bold blue]")
+                elif any(k in satir.lower() for k in ("warning", "error")):
+                    if "output module template" in satir.lower() and "not recognized" in satir.lower():
+                        sablon_hatasi = True
+                    console.print(f"[bold yellow]{escape(satir.strip())}[/bold yellow]")
+                    
+            process.stdout.close()
+            process.wait()
+            return sablon_hatasi
+        except Exception as e:
+            console.print(f"\n[bold red][HATA][/bold red] Çökme yaşandı: {e}")
+            return False
+
+    sablon_hatasi = _render_calistir(CIKTI_SABLONU)
+
+    # Eğer özel ygiido şablonu yüklü değilse, projenin kayıtlı kendi şablonuyla dene
+    if not os.path.exists(cikis_yolu) and sablon_hatasi:
+        console.print("[bold yellow][BİLGİ][/bold yellow] Özel çıktı şablonu bulunamadı, proje varsayılan şablonuyla deneniyor...")
+        _render_calistir(None)
+
+    if os.path.exists(cikis_yolu):
+        console.print(f"\n[bold green][BAŞARILI][/bold green] Video kaydedildi: {cikis_yolu}")
+        ses_cal()
+    else:
+        console.print(f"\n[bold red][HATA][/bold red] İşlem bitti ama dosya oluşmadı. Şablon veya Comp adı yanlış olabilir.")
 
 
 HAFTALIK_SEO_SABLON = """-Bermuda Futbol Uçgeni Canlı Yayın -
