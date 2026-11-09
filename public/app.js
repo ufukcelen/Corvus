@@ -4,13 +4,14 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.5.3";
+const APP_VERSION = "1.6.0";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
 const STORAGE_KEY_TAKVIM = "corvus_web_takvim";
 const STORAGE_KEY_USER = "corvus_web_user";
 const STORAGE_KEY_AUTH = "corvus_auth_session";
+const FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db";
 
 // Kullanıcı Şehir Eşleştirmesi (Weatherstack Hava Durumu)
 const USER_CITY_MAP = {
@@ -1117,7 +1118,6 @@ function openGoogleCalendarForBroadcast(index) {
 }
 
 // 8. Firebase Realtime Database & Ntfy Çift Yönlü Senkronizasyon (tellal.py ile Anında Konuşma)
-const FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db";
 
 async function yayinlariBulutaGonder(ozetMesaj = "") {
   const icerik = state.yayinlar.join("\n") + (state.yayinlar.length ? "\n" : "");
