@@ -4,7 +4,7 @@
  * Sürüm: v1.4.8
  */
 
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.6.1";
 
 // Global State
 const NTFY_TOPIC_TAKVIM = "tellal_takvim_sync_u_y_8832";
@@ -13,14 +13,14 @@ const STORAGE_KEY_USER = "corvus_web_user";
 const STORAGE_KEY_AUTH = "corvus_auth_session";
 const FIREBASE_DB_URL = "https://tellal-otomasyon-default-rtdb.europe-west1.firebasedatabase.app/tellal_db";
 
-// Kullanıcı Şehir Eşleştirmesi (Weatherstack Hava Durumu)
+// Kullanıcı Şehir Eşleştirmesi (Weatherstack & Open-Meteo Canlı Hava Durumu)
 const USER_CITY_MAP = {
-  "Ufuk Çelen": { cityKey: "Istanbul", displayName: "İstanbul" },
-  "Cem Yıldırım": { cityKey: "Ankara", displayName: "Ankara" },
-  "Mustafa Yiğit Kızılel": { cityKey: "Denizli", displayName: "Denizli" },
-  "Kadir Tekin": { cityKey: "Yalova", displayName: "Yalova" },
-  "Yağız Pekdemir": { cityKey: "Sakarya", displayName: "Sakarya" },
-  "Burhan Mutlugöz": { cityKey: "Nagold,Germany", displayName: "Nagold (Almanya)" }
+  "Ufuk Çelen": { cityKey: "Istanbul", displayName: "İstanbul", lat: 41.0082, lon: 28.9784 },
+  "Cem Yıldırım": { cityKey: "Ankara", displayName: "Ankara", lat: 39.9334, lon: 32.8597 },
+  "Mustafa Yiğit Kızılel": { cityKey: "Denizli", displayName: "Denizli", lat: 37.7765, lon: 29.0864 },
+  "Kadir Tekin": { cityKey: "Yalova", displayName: "Yalova", lat: 40.6550, lon: 29.2769 },
+  "Yağız Pekdemir": { cityKey: "Sakarya", displayName: "Sakarya", lat: 40.7569, lon: 30.3783 },
+  "Burhan Mutlugöz": { cityKey: "Nagold,Germany", displayName: "Nagold (Almanya)", lat: 48.5505, lon: 8.7237 }
 };
 
 const WEATHER_DESC_TR = {
@@ -3387,37 +3387,84 @@ async function loadAndDisplayWeather(showToastOnClick = false) {
   if (!badgeElem) return;
 
   const userName = state.currentUser || "Ufuk Çelen";
-  const userCity = USER_CITY_MAP[userName] || { cityKey: "Istanbul", displayName: "İstanbul" };
+  const userCity = USER_CITY_MAP[userName] || { cityKey: "Istanbul", displayName: "İstanbul", lat: 41.0082, lon: 28.9784 };
 
+  let weatherData = null;
+
+  // 1. Birincil Kaynak: Firebase Realtime Database
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/weather/${encodeURIComponent(userName)}.json?t=${Date.now()}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.sicaklik !== undefined) {
-        currentWeatherCache = data;
-        const durumRaw = (data.durum || "").trim();
-        const durumTr = WEATHER_DESC_TR[durumRaw.toLowerCase()] || durumRaw || "Açık";
-        const emoji = getWeatherEmoji(durumRaw);
+      // Veri varsa ve son 4 saatten eskiyse veya geçersizse doğrudan Open-Meteo'ya geç
+      const nowSec = Math.floor(Date.now() / 1000);
+      const isFresh = data && data.son_guncelleme && (nowSec - data.son_guncelleme < 14400);
 
-        if (iconElem) iconElem.textContent = emoji;
-        if (cityElem) cityElem.textContent = data.sehir || userCity.displayName;
-        if (tempElem) tempElem.textContent = `${data.sicaklik}°C`;
-
-        const tooltip = `${data.sehir}: ${data.sicaklik}°C (${durumTr}) • Hissedilen: ${data.hissedilen ?? data.sicaklik}°C • Nem: %${data.nem ?? "-"} • Rüzgar: ${data.ruzgar ?? "-"} km/s`;
-        badgeElem.title = `${tooltip} (Detay için tıklayın)`;
-
-        if (showToastOnClick) {
-          showToast(`🌤️ ${data.sehir}: ${data.sicaklik}°C (${durumTr}) • Hissedilen: ${data.hissedilen}°C • Nem: %${data.nem} • Rüzgar: ${data.ruzgar} km/s`, "info");
-        }
-        return;
+      if (data && data.sicaklik !== undefined && isFresh) {
+        weatherData = data;
       }
     }
   } catch (err) {
-    console.warn("Hava durumu yükleme hatası:", err);
+    console.warn("Firebase hava durumu okuma uyarısı:", err);
   }
 
-  // Varsayılan / Fallback
-  if (cityElem) cityElem.textContent = userCity.displayName;
+  // 2. Yedek & Kendi Kendini Onarma Kaynağı: Open-Meteo API (Doğrudan istemci üzerinden sınırsız & canlı)
+  if (!weatherData && userCity.lat && userCity.lon) {
+    try {
+      const omUrl = `https://api.open-meteo.com/v1/forecast?latitude=${userCity.lat}&longitude=${userCity.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+      const omRes = await fetch(omUrl);
+      if (omRes.ok) {
+        const omJson = await omRes.json();
+        const curr = omJson.current;
+        if (curr) {
+          const wcode = curr.weather_code || 0;
+          let durumText = "Açık";
+          if (wcode === 1 || wcode === 2) durumText = "Parçalı Bulutlu";
+          else if (wcode === 3) durumText = "Bulutlu";
+          else if (wcode === 45 || wcode === 48) durumText = "Sisli";
+          else if (wcode >= 51 && wcode <= 55) durumText = "Çisenti";
+          else if (wcode >= 61 && wcode <= 65) durumText = "Yağmurlu";
+          else if (wcode >= 71 && wcode <= 77) durumText = "Karlı";
+          else if (wcode >= 80 && wcode <= 82) durumText = "Sağanak Yağışlı";
+          else if (wcode >= 95) durumText = "Gök Gürültülü Fırtına";
+
+          weatherData = {
+            sehir: userCity.displayName,
+            sicaklik: Math.round(curr.temperature_2m),
+            hissedilen: Math.round(curr.apparent_temperature ?? curr.temperature_2m),
+            durum: durumText,
+            nem: Math.round(curr.relative_humidity_2m),
+            ruzgar: Math.round(curr.wind_speed_10m),
+            son_guncelleme: Math.floor(Date.now() / 1000),
+            kaynak: "Open-Meteo"
+          };
+        }
+      }
+    } catch (omErr) {
+      console.warn("Open-Meteo canlı çekme uyarısı:", omErr);
+    }
+  }
+
+  // Arayüzü Güncelle
+  if (weatherData) {
+    currentWeatherCache = weatherData;
+    const durumRaw = (weatherData.durum || "").trim();
+    const durumTr = WEATHER_DESC_TR[durumRaw.toLowerCase()] || durumRaw || "Açık";
+    const emoji = getWeatherEmoji(durumRaw);
+
+    if (iconElem) iconElem.textContent = emoji;
+    if (cityElem) cityElem.textContent = weatherData.sehir || userCity.displayName;
+    if (tempElem) tempElem.textContent = `${weatherData.sicaklik}°C`;
+
+    const tooltip = `${weatherData.sehir}: ${weatherData.sicaklik}°C (${durumTr}) • Hissedilen: ${weatherData.hissedilen ?? weatherData.sicaklik}°C • Nem: %${weatherData.nem ?? "-"} • Rüzgar: ${weatherData.ruzgar ?? "-"} km/s`;
+    badgeElem.title = `${tooltip} (Detay için tıklayın)`;
+
+    if (showToastOnClick) {
+      showToast(`🌤️ ${weatherData.sehir}: ${weatherData.sicaklik}°C (${durumTr}) • Hissedilen: ${weatherData.hissedilen}°C • Nem: %${weatherData.nem} • Rüzgar: ${weatherData.ruzgar} km/s`, "info");
+    }
+  } else {
+    if (cityElem) cityElem.textContent = userCity.displayName;
+  }
 }
 
 // 10. Canlı Saat

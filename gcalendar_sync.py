@@ -359,46 +359,101 @@ def get_weatherstack_api_key():
     return ""
 
 USER_CITY_QUERIES = {
-    "Ufuk Çelen": {"query": "Istanbul", "name": "İstanbul"},
-    "Cem Yıldırım": {"query": "Ankara", "name": "Ankara"},
-    "Mustafa Yiğit Kızılel": {"query": "Denizli", "name": "Denizli"},
-    "Kadir Tekin": {"query": "Yalova", "name": "Yalova"},
-    "Yağız Pekdemir": {"query": "Sakarya", "name": "Sakarya"},
-    "Burhan Mutlugöz": {"query": "Nagold,Germany", "name": "Nagold (Almanya)"}
+    "Ufuk Çelen": {"query": "Istanbul", "name": "İstanbul", "lat": 41.0082, "lon": 28.9784},
+    "Cem Yıldırım": {"query": "Ankara", "name": "Ankara", "lat": 39.9334, "lon": 32.8597},
+    "Mustafa Yiğit Kızılel": {"query": "Denizli", "name": "Denizli", "lat": 37.7765, "lon": 29.0864},
+    "Kadir Tekin": {"query": "Yalova", "name": "Yalova", "lat": 40.6550, "lon": 29.2769},
+    "Yağız Pekdemir": {"query": "Sakarya", "name": "Sakarya", "lat": 40.7569, "lon": 30.3783},
+    "Burhan Mutlugöz": {"query": "Nagold,Germany", "name": "Nagold (Almanya)", "lat": 48.5505, "lon": 8.7237}
+}
+
+WMO_DESC_TR = {
+    0: "Açık",
+    1: "Çoğunlukla Açık",
+    2: "Parçalı Bulutlu",
+    3: "Bulutlu",
+    45: "Sisli",
+    48: "Puslu / Sisli",
+    51: "Hafif Çisenti",
+    53: "Çisenti",
+    55: "Yoğun Çisenti",
+    61: "Hafif Yağmurlu",
+    63: "Yağmurlu",
+    65: "Kuvvetli Yağmurlu",
+    71: "Hafif Karlı",
+    73: "Karlı",
+    75: "Kuvvetli Kar",
+    80: "Hafif Sağanak",
+    81: "Sağanak Yağışlı",
+    82: "Kuvvetli Sağanak",
+    95: "Gök Gürültülü Fırtına"
 }
 
 def hava_durumunu_guncelle():
-    """Tüm kullanıcılar için Weatherstack API'sinden hava durumunu çeker ve Firebase'e kaydeder."""
+    """Weatherstack API'sinden veya kota aşımında Open-Meteo'dan hava durumunu çeker ve Firebase'e kaydeder."""
     api_key = get_weatherstack_api_key()
-    if not api_key:
-        return
-
     weather_results = {}
+
     for user, info in USER_CITY_QUERIES.items():
-        try:
-            url = f"http://api.weatherstack.com/current?access_key={api_key}&query={info['query']}"
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-            if r.status_code == 200:
-                d = r.json()
-                if "current" in d:
-                    curr = d["current"]
-                    weather_results[user] = {
-                        "sehir": info["name"],
-                        "sicaklik": curr.get("temperature"),
-                        "hissedilen": curr.get("feelslike"),
-                        "durum": curr.get("weather_descriptions", [""])[0],
-                        "icon": curr.get("weather_icons", [""])[0],
-                        "nem": curr.get("humidity"),
-                        "ruzgar": curr.get("wind_speed"),
-                        "son_guncelleme": int(time.time())
-                    }
-            time.sleep(1.0)
-        except Exception:
-            pass
+        fetched = False
+        # 1. Öncelik: Weatherstack API
+        if api_key:
+            try:
+                url = f"http://api.weatherstack.com/current?access_key={api_key}&query={info['query']}"
+                r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+                if r.status_code == 200:
+                    d = r.json()
+                    if "current" in d:
+                        curr = d["current"]
+                        weather_results[user] = {
+                            "sehir": info["name"],
+                            "sicaklik": int(round(curr.get("temperature", 0))),
+                            "hissedilen": int(round(curr.get("feelslike", 0))),
+                            "durum": curr.get("weather_descriptions", [""])[0],
+                            "icon": curr.get("weather_icons", [""])[0],
+                            "nem": curr.get("humidity"),
+                            "ruzgar": curr.get("wind_speed"),
+                            "son_guncelleme": int(time.time()),
+                            "kaynak": "Weatherstack"
+                        }
+                        fetched = True
+            except Exception:
+                pass
+
+        # 2. Öncelik (Yedek / Kota Aşımı): Open-Meteo (Ücretsiz, sınırsız & anahtarsız)
+        if not fetched and "lat" in info and "lon" in info:
+            try:
+                om_url = f"https://api.open-meteo.com/v1/forecast?latitude={info['lat']}&longitude={info['lon']}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto"
+                r = requests.get(om_url, timeout=6)
+                if r.status_code == 200:
+                    d = r.json()
+                    if "current" in d:
+                        curr = d["current"]
+                        wcode = curr.get("weather_code", 0)
+                        durum_str = WMO_DESC_TR.get(wcode, "Açık")
+                        temp_c = int(round(curr.get("temperature_2m", 0)))
+                        feels_c = int(round(curr.get("apparent_temperature", temp_c)))
+                        weather_results[user] = {
+                            "sehir": info["name"],
+                            "sicaklik": temp_c,
+                            "hissedilen": feels_c,
+                            "durum": durum_str,
+                            "icon": "",
+                            "nem": int(round(curr.get("relative_humidity_2m", 0))),
+                            "ruzgar": int(round(curr.get("wind_speed_10m", 0))),
+                            "son_guncelleme": int(time.time()),
+                            "kaynak": "Open-Meteo"
+                        }
+                        fetched = True
+            except Exception as e:
+                pass
+
+        time.sleep(0.3)
+
     if weather_results:
         try:
             requests.put(f"{FIREBASE_DB_URL}/weather.json", json=weather_results, timeout=8)
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🌤️ Hava durumu güncellendi (6 şehir).")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 🌤️ Canlı hava durumu güncellendi ({len(weather_results)} şehir).")
         except Exception:
             pass
 
