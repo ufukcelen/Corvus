@@ -49,7 +49,7 @@ SURUM_NOTLARI = {
         "Photoshop Thumbnail Merkezi: Filtresiz Memleket, Canlı Maç ve Haftalık Program için tam otomatik PSD kapağı üretimi.",
         "TV Yayın Standardında Optik Dengeleme: Dairesel ve oval/yıldızlı armaların (GS, Konya vb.) görsel ağırlık ve yatay merkez (Center-Y) uyumu tamamlandı.",
         "Google Drive Entegrasyonu: 750 MB'lık büyük PSD şablonları yerel sistemde yoksa Drive üzerinden anlık ilerleme çubuğuyla otomatik indirilir.",
-        "Evrensel Photoshop Sürüm Desteği: macOS üzerindeki Photoshop 2024-2026 sürümleri otomatik tespit edilir (-2741 sözdizimi hatası giderildi).",
+        "Evrensel Photoshop Sürüm Desteği: macOS üzerindeki Photoshop 2024-2027 sürümleri otomatik tespit edilir (-2741 sözdizimi hatası giderildi).",
         "Corvus.app Başlatıcı Optimizasyonu: Uygulama açılışında fazladan boş Terminal penceresi oluşumu engellendi.",
     ],
     "1.4.8": [
@@ -1555,7 +1555,7 @@ def psd_sablonu_temin_et(psd_adi):
 def photoshop_app_adi_al():
     """
     Sistemde yüklü olan Adobe Photoshop sürümünü otomatik tespit eder.
-    (Örn: Adobe Photoshop 2026, Adobe Photoshop 2025, Adobe Photoshop 2024, Adobe Photoshop)
+    (Örn: Adobe Photoshop 2027, Adobe Photoshop 2026, Adobe Photoshop 2025, Adobe Photoshop 2024, Adobe Photoshop)
     """
     # 1. /Applications dizini altındaki uygulamaları ara
     bulunanlar = glob.glob("/Applications/Adobe Photoshop*/*.app") + glob.glob("/Applications/Adobe Photoshop*.app")
