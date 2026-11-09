@@ -354,29 +354,70 @@ def cmd_tek_mac(args, corvus, p_dir):
 
 
 def cmd_fc_kariyer(args, corvus, p_dir):
-    takim = args.takim or corvus.FC_VARSAYILAN_TAKIM
+    takim = args.takim or getattr(corvus, "FC_VARSAYILAN_TAKIM", "Feyenoord")
     print(f"[Corvus Mac] FC27 Kariyer hazırlanıyor... Takım: {takim}")
-    corvus.fc_takim_yaz(takim)
+    if hasattr(corvus, "fc_takim_yaz"):
+        corvus.fc_takim_yaz(takim)
 
     # Logo ara ve hazırla
-    eslesen = corvus.fc_takim_ara(takim)
-    if eslesen and "logo" in eslesen[0]:
-        corvus.fc_logo_hazirla(eslesen[0]["logo"])
+    if hasattr(corvus, "fc_takim_ara") and hasattr(corvus, "fc_logo_hazirla"):
+        eslesen = corvus.fc_takim_ara(takim)
+        if eslesen and "logo" in eslesen[0]:
+            corvus.fc_logo_hazirla(eslesen[0]["logo"])
 
-    klasor = corvus.cikti_klasoru_al("FC27 Kariyer")
-    if hasattr(args, "saat") and args.saat:
-        corvus.fc27_saat_yaz(args.saat)
-        corvus.fc27_zamanli_txt_yaz(takim, args.saat, klasor)
-        if args.render:
-            video_adi = corvus.FC_ZAMANLI_VIDEO_ADI
-            print(f"[Corvus Mac] Zamanlı Render başlatılıyor: {video_adi} -> {klasor}")
-            corvus.ae_render_baslat(video_adi, proje_yolu=corvus.FC_ZAMANLI_PROJE_YOLU, kompozisyon=corvus.FC_ZAMANLI_KOMPOZISYON, hedef_klasor=klasor)
+    fc_dir = getattr(corvus, "FC_DIR", os.path.join(p_dir, "FC Kariyer Duyuru"))
+    if hasattr(corvus, "cikti_klasoru_al"):
+        klasor = corvus.cikti_klasoru_al("FC27 Kariyer")
     else:
-        corvus.fc27_txt_yaz(takim, klasor)
+        klasor = os.path.join(os.path.expanduser("~/Desktop"), f"{datetime.now().strftime("%d %B")}_FC27 Kariyer")
+    os.makedirs(klasor, exist_ok=True)
+
+    if hasattr(args, "saat") and args.saat:
+        if hasattr(corvus, "fc27_saat_yaz"):
+            corvus.fc27_saat_yaz(args.saat)
+        else:
+            saat_dosyasi = getattr(corvus, "FC_SAAT_DOSYASI", os.path.join(fc_dir, "fc27saat.json"))
+            try:
+                with open(saat_dosyasi, "w", encoding="utf-8") as f:
+                    json.dump({"baslik": args.saat}, f, ensure_ascii=False, indent=2)
+                print(f"[BİLGİ] fc27saat.json güncellendi: {args.saat}")
+            except Exception as e:
+                print(f"[UYARI] fc27saat.json yazılamadı: {e}")
+
+        if hasattr(corvus, "fc27_zamanli_txt_yaz"):
+            corvus.fc27_zamanli_txt_yaz(takim, args.saat, klasor)
+        else:
+            txt_adi = getattr(corvus, "FC_ZAMANLI_VIDEO_ADI", "fc27buaksam.mp4").replace(".mp4", ".txt")
+            txt_yolu = os.path.join(klasor, txt_adi)
+            try:
+                with open(txt_yolu, "w", encoding="utf-8") as f:
+                    f.write(f"- FC27 Kariyer Duyuru -
+Takım: {takim}
+Saat: {args.saat}
+")
+            except Exception:
+                pass
+
         if args.render:
-            video_adi = corvus.FC_VIDEO_ADI
+            video_adi = getattr(corvus, "FC_ZAMANLI_VIDEO_ADI", "fc27buaksam.mp4")
+            proje = getattr(corvus, "FC_ZAMANLI_PROJE_YOLU", None)
+            if not proje or not os.path.exists(proje):
+                alt_p = os.path.join(fc_dir, "fc27kariyerDuyZamanli.aep")
+                if not os.path.exists(alt_p):
+                    alt_p = os.path.join(fc_dir, "fc27kariyerDuyZamanlı.aep")
+                proje = alt_p
+            comp = getattr(corvus, "FC_ZAMANLI_KOMPOZISYON", "fc27zaman")
+            print(f"[Corvus Mac] Zamanlı Render başlatılıyor: {video_adi} -> {klasor}")
+            corvus.ae_render_baslat(video_adi, proje_yolu=proje, kompozisyon=comp, hedef_klasor=klasor)
+    else:
+        if hasattr(corvus, "fc27_txt_yaz"):
+            corvus.fc27_txt_yaz(takim, klasor)
+        if args.render:
+            video_adi = getattr(corvus, "FC_VIDEO_ADI", "fc27duyuru.mp4")
+            proje = getattr(corvus, "FC_PROJE_YOLU", os.path.join(fc_dir, "fc27kariyerDuyuru.aep"))
+            comp = getattr(corvus, "FC_KOMPOZISYON", "fc27duyuru")
             print(f"[Corvus Mac] Render başlatılıyor: {video_adi} -> {klasor}")
-            corvus.ae_render_baslat(video_adi, proje_yolu=corvus.FC_PROJE_YOLU, kompozisyon=corvus.FC_KOMPOZISYON, hedef_klasor=klasor)
+            corvus.ae_render_baslat(video_adi, proje_yolu=proje, kompozisyon=comp, hedef_klasor=klasor)
 
 
 def main():
