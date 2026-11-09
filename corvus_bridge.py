@@ -8,6 +8,7 @@ All features and operations from corvus.py are preserved 100% faithfully.
 
 import sys
 import os
+os.environ["CA_ASSERT_MAIN_THREAD_TRANSACTIONS"] = "0"
 import argparse
 import json
 import io
