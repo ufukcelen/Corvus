@@ -12,7 +12,18 @@ import requests
 # =====================================================================
 # AYARLAR
 # =====================================================================
-AERENDER_YOLU = "/Applications/Adobe After Effects 2026/aerender"
+def _bfu_aerender_bul():
+    for p in [
+        "/Applications/Adobe After Effects 2027/aerender",
+        "/Applications/Adobe After Effects 2026/aerender",
+        "/Applications/Adobe After Effects 2025/aerender",
+        "/Applications/Adobe After Effects 2024/aerender"
+    ]:
+        if os.path.exists(p):
+            return p
+    return "/Applications/Adobe After Effects 2027/aerender"
+
+AERENDER_YOLU = _bfu_aerender_bul()
 KOMPOZISYON_ADI = "mainsahne"
 CIKTI_SABLONU = "H264_40M"
 

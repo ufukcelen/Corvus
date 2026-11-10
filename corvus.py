@@ -311,12 +311,18 @@ def api_anahtari_oku():
 
 
 def aerender_bul():
-    varsayilan = "/Applications/Adobe After Effects 2026/aerender"
-    if os.path.exists(varsayilan):
-        return varsayilan
-    adaylar = sorted(glob.glob("/Applications/Adobe After Effects*/aerender"), reverse=True)
-    adaylar += sorted(glob.glob(r"C:\Program Files\Adobe\Adobe After Effects*\Support Files\aerender.exe"), reverse=True)
-    return adaylar[0] if adaylar else varsayilan
+    adaylar = [
+        "/Applications/Adobe After Effects 2027/aerender",
+        "/Applications/Adobe After Effects 2026/aerender",
+        "/Applications/Adobe After Effects 2025/aerender",
+        "/Applications/Adobe After Effects 2024/aerender"
+    ]
+    for p in adaylar:
+        if os.path.exists(p):
+            return p
+    glob_adaylar = sorted(glob.glob("/Applications/Adobe After Effects*/aerender"), reverse=True)
+    glob_adaylar += sorted(glob.glob(r"C:\Program Files\Adobe\Adobe After Effects*\Support Files\aerender.exe"), reverse=True)
+    return glob_adaylar[0] if glob_adaylar else "/Applications/Adobe After Effects 2027/aerender"
 
 
 def ses_cal():
