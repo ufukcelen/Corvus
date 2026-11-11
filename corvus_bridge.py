@@ -322,6 +322,54 @@ def cmd_albert_ve_cem(args, corvus, p_dir):
         corvus.seo_albert_yaz(saat, video_adi, hedef_klasor=klasor)
 
 
+
+
+def cmd_mocas_bey(args, corvus, p_dir):
+    saat = args.saat or getattr(corvus, "MOCAS_BEY_VARSAYILAN_SAAT", "21:30")
+    print(f"[Corvus Mac] Mocas Bey ve Radyosu hazırlanıyor... Saat: {saat}")
+    
+    json_yolu = getattr(corvus, "MOCAS_BEY_JSON_YOLU", None)
+    if not json_yolu or not os.path.exists(os.path.dirname(json_yolu)):
+        json_yolu = os.path.join(p_dir, "Mocas Bey", "mocasBeysaat.json")
+    
+    os.makedirs(os.path.dirname(json_yolu), exist_ok=True)
+    with open(json_yolu, "w", encoding="utf-8") as f:
+        json.dump({"baslik": saat, "saat": saat}, f, ensure_ascii=False)
+    print(f"[Corvus Mac] mocasBeysaat.json güncellendi: {json_yolu} -> {saat}")
+
+    desktop_json = os.path.expanduser("~/Desktop/Mocas Bey/mocasBeysaat.json")
+    if os.path.exists(desktop_json):
+        try:
+            with open(desktop_json, "w", encoding="utf-8") as f:
+                json.dump({"baslik": saat, "saat": saat}, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    klasor = corvus.cikti_klasoru_al("Mocas Bey")
+    if args.render:
+        video_adi = f"Mocas_Bey_{saat.replace(':', '')}.mp4"
+        proje_yolu = None
+        if hasattr(corvus, "mocas_bey_proje_bul"):
+            proje_yolu = corvus.mocas_bey_proje_bul()
+        if not proje_yolu or not os.path.exists(proje_yolu):
+            proje_yolu = os.path.join(p_dir, "Mocas Bey", "mocasBey27.aep")
+        if not os.path.exists(proje_yolu):
+            alt_yol = os.path.expanduser("~/Desktop/The Projeler/Duyurular/Youtube Duyuru Otomasyon/Mocas Bey/mocasBey27.aep")
+            if os.path.exists(alt_yol):
+                proje_yolu = alt_yol
+
+        if not os.path.exists(proje_yolu):
+            sys.stderr.write(f"HATA: Mocas Bey After Effects projesi bulunamadı! ({proje_yolu})\n")
+            sys.exit(1)
+
+        komp = getattr(corvus, "MOCAS_BEY_KOMPOZISYON", "mocasBeyComp")
+        print(f"[Corvus Mac] Render başlatılıyor: {video_adi} -> {klasor}")
+        corvus.ae_render_baslat(video_adi, proje_yolu=proje_yolu, kompozisyon=komp, hedef_klasor=klasor)
+        if hasattr(corvus, "seo_mocas_bey_yaz"):
+            corvus.seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=klasor)
+        else:
+            corvus.seo_yaz("mocasBeySeo.txt", f"-Mocas Bey ve Radyosu- Canlı Yayın -\nSaat: {saat}\n", video_adi, hedef_klasor=klasor)
+
 def cmd_tek_mac(args, corvus, p_dir):
     saat = args.saat or corvus.TMY_VARSAYILAN_SAAT
     kayhan_var = bool(args.kayhan)
@@ -466,6 +514,11 @@ def main():
     p_ac.add_argument("--saat", default="23:00")
     p_ac.add_argument("--render", action="store_true")
 
+    # mocas_bey
+    p_mb = subparsers.add_parser("mocas_bey")
+    p_mb.add_argument("--saat", default="21:30")
+    p_mb.add_argument("--render", action="store_true")
+
     # tek_mac
     p_tm = subparsers.add_parser("tek_mac")
     p_tm.add_argument("--saat", default="21:00")
@@ -496,6 +549,7 @@ def main():
         "haftalik_thumbnail": cmd_haftalik_thumbnail,
         "canli_thumbnail": cmd_canli_thumbnail,
         "albert_ve_cem": cmd_albert_ve_cem,
+        "mocas_bey": cmd_mocas_bey,
         "tek_mac": cmd_tek_mac,
         "fc_kariyer": cmd_fc_kariyer,
     }

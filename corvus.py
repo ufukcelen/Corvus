@@ -371,6 +371,12 @@ ALBERT_JSON_YOLU = os.path.join(ALBERT_DIR, "albert.json")
 ALBERT_KOMPOZISYON = "albertSahne"
 ALBERT_VARSAYILAN_SAAT = "23:00" 
 
+MOCAS_BEY_DIR = os.path.join(SCRIPT_DIR, "Mocas Bey")
+MOCAS_BEY_PROJE_YOLU = os.path.join(MOCAS_BEY_DIR, "mocasBey27.aep")
+MOCAS_BEY_JSON_YOLU = os.path.join(MOCAS_BEY_DIR, "mocasBeysaat.json")
+MOCAS_BEY_KOMPOZISYON = "mocasBeyComp"
+MOCAS_BEY_VARSAYILAN_SAAT = "21:30" 
+
 TMY_DIR = os.path.join(SCRIPT_DIR, "Tekmaç")
 TMY_ASSETS_DIR = os.path.join(TMY_DIR, "Assets")
 TMY_JSON_YOLU = os.path.join(TMY_ASSETS_DIR, "tmy.json")
@@ -1126,6 +1132,71 @@ def albert_ve_cem_yap():
         video_adi = f"Albert_ve_Cem_{saat.replace(':', '')}.mp4"
         ae_render_baslat(video_adi, proje_yolu=ALBERT_PROJE_YOLU, kompozisyon=ALBERT_KOMPOZISYON, hedef_klasor=klasor)
         seo_albert_yaz(saat, video_adi, hedef_klasor=klasor)
+    else:
+        console.print("[dim]Render atlandı.[/dim]")
+
+
+MOCAS_BEY_SEO_SABLON = """-Mocas Bey ve Radyosu- Canlı Yayın -
+
+Müzikli Sohbet, Sohbetli Müzik.
+Yayın tekrarı yoktur, kaçıranlar üzülebilir!
+
+#mocasbey #radiomocas #canlıyayın #müzik #sohbet
+
+{planla}saatine planla
+-
+"""
+
+
+def seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=None):
+    plan, onceki_gun = planlama_saati(saat)
+    if plan:
+        gun = " (bir önceki gün) " if onceki_gun else " "
+        plan_metni = f"{plan}{gun}"
+    else:
+        plan_metni = "yayın saatinden 4 saat önce "
+    icerik = MOCAS_BEY_SEO_SABLON.format(planla=plan_metni)
+    seo_yaz("mocasBeySeo.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
+
+
+def mocas_bey_proje_bul():
+    adaylar = [
+        MOCAS_BEY_PROJE_YOLU,
+        os.path.join(SCRIPT_DIR, "Mocas Bey", "mocasBey27.aep"),
+        os.path.join(os.path.expanduser("~/Desktop"), "Mocas Bey", "mocasBey27.aep"),
+        os.path.join(os.path.expanduser("~/Desktop/The Projeler/Duyurular/Youtube Duyuru Otomasyon/Mocas Bey"), "mocasBey27.aep")
+    ]
+    for cand in adaylar:
+        if os.path.exists(cand):
+            return cand
+    if os.path.isdir(MOCAS_BEY_DIR):
+        for f in os.listdir(MOCAS_BEY_DIR):
+            if f.endswith(".aep"):
+                return os.path.join(MOCAS_BEY_DIR, f)
+    return MOCAS_BEY_PROJE_YOLU
+
+
+def mocas_bey_yap():
+    if not os.path.isdir(MOCAS_BEY_DIR):
+        console.print(f"[bold red][HATA][/bold red] Mocas Bey klasörü bulunamadı: {MOCAS_BEY_DIR}")
+        return
+    proje_yolu = mocas_bey_proje_bul()
+    if not os.path.exists(proje_yolu):
+        console.print(f"[bold red][HATA][/bold red] After Effects projesi bulunamadı: {proje_yolu}")
+        return
+
+    saat = saat_oner_al(MOCAS_BEY_VARSAYILAN_SAAT)
+
+    with open(MOCAS_BEY_JSON_YOLU, "w", encoding="utf-8") as f:
+        json.dump({"baslik": saat, "saat": saat}, f, ensure_ascii=False)
+
+    console.print(f"[bold cyan][BİLGİ][/bold cyan] mocasBeysaat.json güncellendi: {saat}")
+
+    klasor = cikti_klasoru_al("Mocas Bey")
+    if Confirm.ask("[bold yellow]Dosyalar güncellendi. Render başlatılsın mı?[/bold yellow]"):
+        video_adi = f"Mocas_Bey_{saat.replace(':', '')}.mp4"
+        ae_render_baslat(video_adi, proje_yolu=proje_yolu, kompozisyon=MOCAS_BEY_KOMPOZISYON, hedef_klasor=klasor)
+        seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=klasor)
     else:
         console.print("[dim]Render atlandı.[/dim]")
 
@@ -2176,7 +2247,10 @@ def radio_mocas_menu():
             except Exception as e:
                 console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         elif secim == "4":
-            yapim_asamasinda_goster("Mocas Bey ve Radyosu")
+            try:
+                mocas_bey_yap()
+            except Exception as e:
+                console.print(f"\n[bold red][HATA][/bold red] İşlem sırasında sorun oluştu: {e}")
         elif secim == "5":
             yapim_asamasinda_goster("Aklımdaki Filmler")
 
