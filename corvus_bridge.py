@@ -325,14 +325,79 @@ def cmd_albert_ve_cem(args, corvus, p_dir):
 
 
 def cmd_mocas_bey(args, corvus, p_dir):
+    import shutil
+    import urllib.request
     saat = args.saat or getattr(corvus, "MOCAS_BEY_VARSAYILAN_SAAT", "21:30")
     print(f"[Corvus Mac] Mocas Bey ve Radyosu hazırlanıyor... Saat: {saat}")
     
-    json_yolu = getattr(corvus, "MOCAS_BEY_JSON_YOLU", None)
-    if not json_yolu or not os.path.exists(os.path.dirname(json_yolu)):
-        json_yolu = os.path.join(p_dir, "Mocas Bey", "mocasBeysaat.json")
+    # 1. Klasör hazırlığı
+    mocas_dir = os.path.join(p_dir, "Mocas Bey")
+    os.makedirs(mocas_dir, exist_ok=True)
     
-    os.makedirs(os.path.dirname(json_yolu), exist_ok=True)
+    # 2. Bundle veya harici kaynaklardan eksik şablonları senkronize et
+    bundle_candidates = [
+        getattr(corvus, "MOCAS_BEY_DIR", ""),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "Mocas Bey"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Resources", "CorvusEngine", "Mocas Bey"),
+        "/Applications/Corvus Mac.app/Contents/Resources/CorvusEngine/Mocas Bey",
+        os.path.expanduser("~/Desktop/Dev/CorvusUI/Corvus Mac/CorvusEngine/Mocas Bey"),
+        os.path.expanduser("~/Desktop/The Projeler/Duyurular/Youtube Duyuru Otomasyon/Mocas Bey"),
+        os.path.expanduser("~/Desktop/Mocas Bey"),
+    ]
+    
+    source_mocas_dir = None
+    for cand in bundle_candidates:
+        if cand and os.path.isdir(cand) and os.path.exists(os.path.join(cand, "mocasBey27.aep")):
+            source_mocas_dir = cand
+            break
+            
+    if source_mocas_dir and os.path.abspath(source_mocas_dir) != os.path.abspath(mocas_dir):
+        for fname in os.listdir(source_mocas_dir):
+            if fname.startswith(".") or fname == "__pycache__":
+                continue
+            src_file = os.path.join(source_mocas_dir, fname)
+            dst_file = os.path.join(mocas_dir, fname)
+            if not os.path.exists(dst_file) and os.path.isfile(src_file):
+                try:
+                    shutil.copy2(src_file, dst_file)
+                    print(f"[Corvus Mac] Dosya senkronize edildi: {fname}")
+                except Exception as e:
+                    print(f"[Corvus Mac] Kopyalama uyarısı: {e}")
+
+    # 3. Eğer mocasBey27.aep hala yoksa doğrudan GitHub'dan indir (Bulut Fallback)
+    proje_yolu = os.path.join(mocas_dir, "mocasBey27.aep")
+    if not os.path.exists(proje_yolu):
+        print("[Corvus Mac] Mocas Bey şablonu yerelde bulunamadı, GitHub üzerinden indiriliyor...")
+        github_files = [
+            "mocasBey27.aep",
+            "Mocas Bey ve Radyosu.png",
+            "Müzikli Sohbet  Sohbetli Müzik.png",
+            "Bu akşam saat 22_00’de.png",
+            "3.png",
+            "ay.png",
+            "icn.png",
+            "Layer 0.png",
+            "logolar.png",
+            "logolar2.png",
+            "mocasBeyRestream.png.png"
+        ]
+        import urllib.parse
+        for g_file in github_files:
+            target_f = os.path.join(mocas_dir, g_file)
+            if not os.path.exists(target_f):
+                enc_name = urllib.parse.quote(f"Mocas Bey/{g_file}")
+                url = f"https://raw.githubusercontent.com/ufukcelen/Corvus/main/{enc_name}"
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "CorvusMac/0.1.9"})
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        with open(target_f, "wb") as out_f:
+                            out_f.write(resp.read())
+                    print(f"[Corvus Mac] GitHub'dan indirildi: {g_file}")
+                except Exception as dl_err:
+                    print(f"[Corvus Mac] İndirme uyarısı ({g_file}): {dl_err}")
+
+    # 4. JSON dosyasını yaz
+    json_yolu = os.path.join(mocas_dir, "mocasBeysaat.json")
     with open(json_yolu, "w", encoding="utf-8") as f:
         json.dump({"baslik": saat, "saat": saat}, f, ensure_ascii=False)
     print(f"[Corvus Mac] mocasBeysaat.json güncellendi: {json_yolu} -> {saat}")
@@ -348,16 +413,6 @@ def cmd_mocas_bey(args, corvus, p_dir):
     klasor = corvus.cikti_klasoru_al("Mocas Bey")
     if args.render:
         video_adi = f"Mocas_Bey_{saat.replace(':', '')}.mp4"
-        proje_yolu = None
-        if hasattr(corvus, "mocas_bey_proje_bul"):
-            proje_yolu = corvus.mocas_bey_proje_bul()
-        if not proje_yolu or not os.path.exists(proje_yolu):
-            proje_yolu = os.path.join(p_dir, "Mocas Bey", "mocasBey27.aep")
-        if not os.path.exists(proje_yolu):
-            alt_yol = os.path.expanduser("~/Desktop/The Projeler/Duyurular/Youtube Duyuru Otomasyon/Mocas Bey/mocasBey27.aep")
-            if os.path.exists(alt_yol):
-                proje_yolu = alt_yol
-
         if not os.path.exists(proje_yolu):
             sys.stderr.write(f"HATA: Mocas Bey After Effects projesi bulunamadı! ({proje_yolu})\n")
             sys.exit(1)
@@ -369,6 +424,7 @@ def cmd_mocas_bey(args, corvus, p_dir):
             corvus.seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=klasor)
         else:
             corvus.seo_yaz("mocasBeySeo.txt", f"-Mocas Bey ve Radyosu- Canlı Yayın -\nSaat: {saat}\n", video_adi, hedef_klasor=klasor)
+
 
 def cmd_tek_mac(args, corvus, p_dir):
     saat = args.saat or corvus.TMY_VARSAYILAN_SAAT

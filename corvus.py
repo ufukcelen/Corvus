@@ -179,6 +179,7 @@ SEED_YOLLARI = {
     "Memleket Duyuru/mem_yayin_saati.json",
     "Tekmaç/Assets/tmyGorsel.png",
     "Tekmaç/Assets/tmy.json",
+    "Mocas Bey/mocasBeysaat.json",
 }
 SEED_KLASORLERI = ("Bfü Duyuru Projesi/Assets/",)  
 
