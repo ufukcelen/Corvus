@@ -1543,10 +1543,15 @@ def fc27_kariyer_yap():
 # =====================================================================
 # GOOGLE DRIVE PSD ŞABLONLARI
 # =====================================================================
+CORVUS_CLOUD_ROOT_ID = "1qQ4wN3st89Z51kD6PQ_PbsGKBqJsx1hu"
+CORVUS_CLOUD_PSD_FOLDER_ID = "1fodjbEdF-lG_kfJu2vtEtbXVpwLDWHl1"
+CORVUS_CLOUD_AE_FOLDER_ID = "1buBM8gwjlFBRllzQ84Ubf3JRV1kiYWeC"
+
+# CorvusCloud altındaki doğrulanmış güncel dosya ID'leri
 DRIVE_PSD_MAP = {
-    "canlimac.psd": "1-MoXpnTqW7NfQEkC9KKzOqcu_SkqK8LP",
+    "canlimac.psd": "1o2YXKE6Xx-Il1T0pR3I0CZBULRfle-ho",
+    "memleketYatay.psd": "1AJ57LHNNEsWClm0A3QsjG77Hi7GcQrRx",
     "haftalık.psd": "1YBgnhw-Clc0lkDG7IATnlbIWWC-AyDOk",
-    "memleketYatay.psd": "1TfGYg6qZ9ndpWKCx1lEcc01j8WxNqxrZ",
 }
 
 
@@ -1592,13 +1597,26 @@ def drive_psd_indir(file_id, hedef_yol, dosya_adi):
 
 def psd_sablonu_temin_et(psd_adi):
     """
-    Belirtilen PSD dosyasını yerel yollarda arar.
-    Bulamazsa Google Drive üzerinden otomatik indirir ve Masaüstüne kaydeder.
+    Belirtilen PSD dosyasını yerel önbellek ve bulut yollarında arar.
+    Application Support / Templates altında güvenli (kesme işareti içermeyen) yolda depolar.
+    Masaüstünü kirletmez!
     """
-    # 1. Masaüstünde var mı?
-    masaustu_yol = os.path.join(MASAUSTU, psd_adi)
-    if os.path.isfile(masaustu_yol) and os.path.getsize(masaustu_yol) > 1000:
-        return masaustu_yol
+    app_support_sablon = os.path.expanduser(f"~/Library/Application Support/Corvus/Templates/{psd_adi}")
+    os.makedirs(os.path.dirname(app_support_sablon), exist_ok=True)
+
+    # 1. Application Support / Corvus / Templates dizini (Önbellek)
+    if os.path.isfile(app_support_sablon) and os.path.getsize(app_support_sablon) > 1000:
+        return app_support_sablon
+
+    # 2. Kullanıcının yerel CloudStorage CorvusCloud dizininde var mı? (Drive'ım içinde tek tırnak olduğu için JSX hatası vermemesi adına kopyalıyoruz)
+    cloud_storage_yerel = os.path.expanduser(f"~/Library/CloudStorage/GoogleDrive-ufukcelen@gmail.com/Drive'ım/CorvusCloud/Photoshop_Sablonlari/{psd_adi}")
+    if os.path.isfile(cloud_storage_yerel) and os.path.getsize(cloud_storage_yerel) > 1000:
+        import shutil
+        try:
+            shutil.copy2(cloud_storage_yerel, app_support_sablon)
+            return app_support_sablon
+        except Exception:
+            return cloud_storage_yerel
 
     # 2. Proje dizini veya Templates altında var mı?
     proje_yol = os.path.join(SCRIPT_DIR, "Templates", psd_adi)
@@ -1609,22 +1627,28 @@ def psd_sablonu_temin_et(psd_adi):
     if os.path.isfile(proje_psd_yol) and os.path.getsize(proje_psd_yol) > 1000:
         return proje_psd_yol
 
-    # 3. Google Drive'dan temin et
+    # 3. Masaüstünde daha önceden kalmışsa (fallback)
+    masaustu_yol = os.path.join(MASAUSTU, psd_adi)
+    if os.path.isfile(masaustu_yol) and os.path.getsize(masaustu_yol) > 1000:
+        return masaustu_yol
+
+    # 4. CorvusCloud Google Drive'dan temin et -> Application Support / Corvus / Templates içine yaz
     file_id = DRIVE_PSD_MAP.get(psd_adi)
     if not file_id:
         console.print(f"\n[bold red][HATA][/bold red] '{psd_adi}' için Drive bağlantısı tanımlı değil.\n")
         return None
 
     try:
-        console.print(f"\n[bold cyan]📥 '{psd_adi}' yerel sistemde bulunamadı. Google Drive'dan otomatik indiriliyor...[/bold cyan]")
-        drive_psd_indir(file_id, masaustu_yol, psd_adi)
-        console.print(f"[bold green]✓ Şablon başarıyla indirildi ve hazırlandı:[/bold green] [dim]{masaustu_yol}[/dim]\n")
-        return masaustu_yol
+        os.makedirs(os.path.dirname(app_support_sablon), exist_ok=True)
+        console.print(f"\n[bold cyan]📥 '{psd_adi}' CorvusCloud'dan indiriliyor...[/bold cyan]")
+        drive_psd_indir(file_id, app_support_sablon, psd_adi)
+        console.print(f"[bold green]✓ Şablon başarıyla hazırlandı:[/bold green] [dim]{app_support_sablon}[/dim]\n")
+        return app_support_sablon
     except Exception as e:
-        console.print(f"\n[bold red][HATA][/bold red] Google Drive'dan indirme başarısız oldu: {e}\n")
-        if os.path.exists(masaustu_yol + ".indiriliyor"):
+        console.print(f"\n[bold red][HATA][/bold red] CorvusCloud'dan indirme başarısız oldu: {e}\n")
+        if os.path.exists(app_support_sablon + ".indiriliyor"):
             try:
-                os.remove(masaustu_yol + ".indiriliyor")
+                os.remove(app_support_sablon + ".indiriliyor")
             except OSError:
                 pass
         return None
@@ -1747,7 +1771,7 @@ function changeHue(hueVal) {{
 }}
 
 try {{
-    var doc = app.open(new File('{psd_yolu}'));
+    var doc = app.open(new File('{psd_yolu_esc}'));
 
     selectLayerByName('bolumno');
     doc.activeLayer.textItem.contents = '{etiket_no}';
@@ -1827,7 +1851,7 @@ def haftalik_thumbnail_olustur():
 
     psd_yolu = psd_sablonu_temin_et("haftalık.psd")
     if not psd_yolu:
-        Prompt.ask("[dim]Devam etmek için Enter'a basın...[/dim]")
+        console.print("[bold yellow][BİLGİ][/bold yellow] 'haftalık.psd' şablonu bulunamadı. Lütfen dosyanızı Google Drive'daki 'CorvusCloud/Photoshop_Sablonlari' klasörüne yükleyin.")
         return False
 
     cikis_yolu = os.path.join(MASAUSTU, "haftalik_program.jpg")
@@ -1836,9 +1860,9 @@ def haftalik_thumbnail_olustur():
 app.displayDialogs = DialogModes.NO;
 
 try {{
-    var doc = app.open(new File('{psd_yolu}'));
+    var doc = app.open(new File('{psd_yolu_esc}'));
 
-    var jpgFile = new File('{cikis_yolu}');
+    var jpgFile = new File('{cikis_yolu_esc}');
     var jpgOpts = new JPEGSaveOptions();
     jpgOpts.quality = 12;
     jpgOpts.embedColorProfile = true;
@@ -1988,6 +2012,10 @@ def canli_mac_thumbnail_olustur(mac_verisi):
         dep_logo_yolu = os.path.join(BASE_DIR, "depTakım.png")
 
     cikis_yolu = os.path.join(MASAUSTU, "canlimacyatay.jpg")
+    psd_yolu_esc = psd_yolu.replace('\\', '/').replace("'", "\\'")
+    cikis_yolu_esc = cikis_yolu.replace('\\', '/').replace("'", "\\'")
+    ev_logo_esc = ev_logo_yolu.replace('\\', '/').replace("'", "\\'")
+    dep_logo_esc = dep_logo_yolu.replace('\\', '/').replace("'", "\\'")
 
     jsx_script = f"""#target photoshop
 app.displayDialogs = DialogModes.NO;
@@ -2009,7 +2037,7 @@ function replaceSmartObject(layerName, filePath) {{
 }}
 
 try {{
-    var doc = app.open(new File('{psd_yolu}'));
+    var doc = app.open(new File('{psd_yolu_esc}'));
 
     // 1. Turnuva katmanlarını ayarla (Sadece eşleşen görünür, diğerleri gizli)
     var turnuvalar = ['superlig', 'cl', 'europa', 'conf', 'uluslar'];
@@ -2020,9 +2048,22 @@ try {{
         }} catch(e) {{}}
     }}
 
+    // 1.1. Uluslar Ligi kuralı: Uluslar Ligi ise kafalar2 aktif & kafalar1 gizli; diğerlerinde kafalar1 aktif & kafalar2 gizli
+    try {{
+        var isUluslar = ('{aktif_turnuva}' === 'uluslar');
+        try {{
+            selectLayerByName('kafalar1');
+            doc.activeLayer.visible = !isUluslar;
+        }} catch(e) {{}}
+        try {{
+            selectLayerByName('kafalar2');
+            doc.activeLayer.visible = isUluslar;
+        }} catch(e) {{}}
+    }} catch(e) {{}}
+
     // 2. Akıllı nesneleri güncelle (oran bozulmadan)
-    replaceSmartObject('evtakim', '{ev_logo_yolu}');
-    replaceSmartObject('deptakim', '{dep_logo_yolu}');
+    replaceSmartObject('evtakim', '{ev_logo_esc}');
+    replaceSmartObject('deptakim', '{dep_logo_esc}');
 
     // 2.1. İki logonun optik merkezini (Center Y) aynı yatay eksene kilitle (TV Yayın Standardı)
     try {{
@@ -2048,7 +2089,7 @@ try {{
     }} catch(e) {{}}
 
     // 3. JPG Olarak Kaydet (Maksimum Kalite: 12)
-    var jpgFile = new File('{cikis_yolu}');
+    var jpgFile = new File('{cikis_yolu_esc}');
     var jpgOpts = new JPEGSaveOptions();
     jpgOpts.quality = 12;
     jpgOpts.embedColorProfile = true;

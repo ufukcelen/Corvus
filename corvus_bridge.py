@@ -228,6 +228,8 @@ def cmd_memleket_thumbnail(args, corvus, p_dir):
     if not psd_yolu:
         sys.stderr.write("HATA: memleketYatay.psd şablonu temin edilemedi!\n")
         sys.exit(1)
+    psd_yolu_esc = psd_yolu.replace('\\', '/').replace("'", "\\'")
+    jpg_cikis_esc = jpg_cikis_yolu.replace('\\', '/').replace("'", "\\'")
 
     jsx_script = f"""#target photoshop
 app.displayDialogs = DialogModes.NO;
@@ -248,7 +250,7 @@ function setHue(layerName, hueValue) {{
 }}
 
 try {{
-    var doc = app.open(new File('{psd_yolu}'));
+    var doc = app.open(new File('{psd_yolu_esc}'));
     try {{
         var txtLyr = doc.artLayers.getByName("bolumno");
         txtLyr.textItem.contents = "{etiket_no}";
@@ -257,7 +259,7 @@ try {{
     setHue("renk1", {hue1});
     setHue("renk2", {hue2});
 
-    var jpgFile = new File('{jpg_cikis_yolu}');
+    var jpgFile = new File('{jpg_cikis_esc}');
     var jpgOpts = new JPEGSaveOptions();
     jpgOpts.quality = 12;
     jpgOpts.embedColorProfile = true;
@@ -388,7 +390,7 @@ def cmd_mocas_bey(args, corvus, p_dir):
                 enc_name = urllib.parse.quote(f"Mocas Bey/{g_file}")
                 url = f"https://raw.githubusercontent.com/ufukcelen/Corvus/main/{enc_name}"
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "CorvusMac/0.2.0"})
+                    req = urllib.request.Request(url, headers={"User-Agent": "CorvusMac/0.2.1"})
                     with urllib.request.urlopen(req, timeout=30) as resp:
                         with open(target_f, "wb") as out_f:
                             out_f.write(resp.read())
