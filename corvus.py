@@ -1144,8 +1144,8 @@ Yayın tekrarı yoktur, kaçıranlar üzülebilir!
 
 #mocasbey #radiomocas #canlıyayın #müzik #sohbet
 
-{planla}saatine planla
--
+{planla}
+cemi etiketle
 """
 
 
@@ -1153,9 +1153,9 @@ def seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=None):
     plan, onceki_gun = planlama_saati(saat)
     if plan:
         gun = " (bir önceki gün) " if onceki_gun else " "
-        plan_metni = f"{plan}{gun}"
+        plan_metni = f"{plan}{gun}saatine planla"
     else:
-        plan_metni = "yayın saatinden 4 saat önce "
+        plan_metni = "yayından 4 saat önceye planla"
     icerik = MOCAS_BEY_SEO_SABLON.format(planla=plan_metni)
     seo_yaz("mocasBeySeo.txt", icerik, video_adi, hedef_klasor=hedef_klasor)
 

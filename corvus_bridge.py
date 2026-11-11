@@ -388,7 +388,7 @@ def cmd_mocas_bey(args, corvus, p_dir):
                 enc_name = urllib.parse.quote(f"Mocas Bey/{g_file}")
                 url = f"https://raw.githubusercontent.com/ufukcelen/Corvus/main/{enc_name}"
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "CorvusMac/0.1.9"})
+                    req = urllib.request.Request(url, headers={"User-Agent": "CorvusMac/0.2.0"})
                     with urllib.request.urlopen(req, timeout=30) as resp:
                         with open(target_f, "wb") as out_f:
                             out_f.write(resp.read())
@@ -423,7 +423,7 @@ def cmd_mocas_bey(args, corvus, p_dir):
         if hasattr(corvus, "seo_mocas_bey_yaz"):
             corvus.seo_mocas_bey_yaz(saat, video_adi, hedef_klasor=klasor)
         else:
-            corvus.seo_yaz("mocasBeySeo.txt", f"-Mocas Bey ve Radyosu- Canlı Yayın -\nSaat: {saat}\n", video_adi, hedef_klasor=klasor)
+            corvus.seo_yaz("mocasBeySeo.txt", f"-Mocas Bey ve Radyosu- Canlı Yayın -\n\nMüzikli Sohbet, Sohbetli Müzik.\nYayın tekrarı yoktur, kaçıranlar üzülebilir!\n\n#mocasbey #radiomocas #canlıyayın #müzik #sohbet\n\nyayından 4 saat önceye planla\ncemi etiketle\n", video_adi, hedef_klasor=klasor)
 
 
 def cmd_tek_mac(args, corvus, p_dir):
