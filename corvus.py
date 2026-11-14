@@ -585,11 +585,11 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None, hedef_klasor=
             console.print(f"\n[bold red][HATA][/bold red] Çökme yaşandı: {e}")
             return False
 
+    # Önce çıktı şablonuyla dene, dosya oluşmazsa otomatik olarak -OMtemplate olmadan (proje varsayılanıyla) tekrar dene
     sablon_hatasi = _render_calistir(CIKTI_SABLONU)
 
-    # Eğer özel ygiido şablonu yüklü değilse, projenin kayıtlı kendi şablonuyla dene
-    if not os.path.exists(cikis_yolu) and sablon_hatasi:
-        console.print("[bold yellow][BİLGİ][/bold yellow] Özel çıktı şablonu bulunamadı, proje varsayılan şablonuyla deneniyor...")
+    if not os.path.exists(cikis_yolu):
+        console.print("[bold yellow][BİLGİ][/bold yellow] Özel çıktı şablonu uygulanamadı veya çıktı üretilemedi. Proje varsayılan şablonuyla deneniyor...")
         _render_calistir(None)
 
     if os.path.exists(cikis_yolu):
