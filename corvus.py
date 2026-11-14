@@ -574,7 +574,7 @@ def ae_render_baslat(cikis_adi, proje_yolu=None, kompozisyon=None, hedef_klasor=
                 if "PROGRESS:" in satir:
                     console.print(f"[bold blue]{satir.strip()}[/bold blue]")
                 elif any(k in satir.lower() for k in ("warning", "error")):
-                    if "output module template" in satir.lower() and "not recognized" in satir.lower():
+                    if ("output module template" in satir.lower()) or ("no output module template was found" in satir.lower()) or ("output module" in satir.lower() and "not" in satir.lower()):
                         sablon_hatasi = True
                     console.print(f"[bold yellow]{escape(satir.strip())}[/bold yellow]")
                     
