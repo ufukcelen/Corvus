@@ -156,7 +156,29 @@ def cmd_canli_mac(args, corvus, p_dir):
     shutil.copyfile(os.path.join(corvus.BASE_DIR, "Borders", b_map.get(lig_id, "superlig.png")), os.path.join(corvus.BASE_DIR, "cerceve.png"))
     shutil.copyfile(os.path.join(corvus.BASE_DIR, "arkaPlanlar", bg_map.get(lig_id, "superligback.png")), os.path.join(corvus.BASE_DIR, "arkaPlan.png"))
     shutil.copyfile(os.path.join(corvus.BASE_DIR, "alt", "maç sonu.png" if mac_sonu else "canlı maç sohbetlerİ.png"), os.path.join(corvus.BASE_DIR, "konu.png"))
-    shutil.copyfile(os.path.join(corvus.BASE_DIR, "kafalar", "millitakım.png" if lig_id == 5 else "haftalık.png"), os.path.join(corvus.BASE_DIR, "kafa.png"))
+    kadir_var = not getattr(args, 'kadir_yok', False)
+    if kadir_var:
+        secilen_kafa = "millitakım.png" if lig_id == 5 else "haftalık.png"
+    else:
+        secilen_kafa = "cyM.png" if lig_id == 5 else "cyK.png"
+    
+    # Temin et (önce Google Drive CorvusCloud, sonra yerel)
+    cloud_kafa = os.path.expanduser(f"~/Library/CloudStorage/GoogleDrive-ufukcelen@gmail.com/Drive'ım/CorvusCloud/AfterEffects_Sablonlari/Bfü Duyuru Projesi/Assets/kafalar/{secilen_kafa}")
+    yerel_kafa = os.path.join(corvus.BASE_DIR, "kafalar", secilen_kafa)
+    direkt_kafa = os.path.join(corvus.BASE_DIR, secilen_kafa)
+    
+    hedef_kafa = os.path.join(corvus.BASE_DIR, "kafa.png")
+    if os.path.isfile(cloud_kafa) and os.path.getsize(cloud_kafa) > 1000:
+        shutil.copyfile(cloud_kafa, hedef_kafa)
+        print(f"[Corvus Mac] Kafa görseli yüklendi (Google Drive): {secilen_kafa}")
+    elif os.path.isfile(yerel_kafa) and os.path.getsize(yerel_kafa) > 1000:
+        shutil.copyfile(yerel_kafa, hedef_kafa)
+        print(f"[Corvus Mac] Kafa görseli yüklendi (Yerel): {secilen_kafa}")
+    elif os.path.isfile(direkt_kafa) and os.path.getsize(direkt_kafa) > 1000:
+        shutil.copyfile(direkt_kafa, hedef_kafa)
+        print(f"[Corvus Mac] Kafa görseli yüklendi (Assets): {secilen_kafa}")
+    else:
+        sys.stderr.write(f"UYARI: {secilen_kafa} bulunamadı!\n")
     shutil.copyfile(os.path.join(corvus.BASE_DIR, "dosyalar", "VS.png"), os.path.join(corvus.BASE_DIR, "VS.png"))
 
     corvus.logo_hazirla(mac_verisi['teams']['home'].get('logo'), os.path.join(corvus.BASE_DIR, "evTakım.png"), ev_adi)
@@ -546,6 +568,7 @@ def main():
     p_c.add_argument("--tarih", default=None)
     p_c.add_argument("--mac_id", required=True)
     p_c.add_argument("--saat", default=None)
+    p_c.add_argument("--kadir-yok", action="store_true", default=False)
     p_c.add_argument("--mac_sonu", action="store_true")
     p_c.add_argument("--render", action="store_true")
     p_c.add_argument("--thumbnail", action="store_true")

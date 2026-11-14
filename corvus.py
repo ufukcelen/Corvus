@@ -852,7 +852,38 @@ def haftalik_program_yap():
         haftalik_thumbnail_olustur()
 
 
-def canli_mac_veya_sonu_yap(mac_sonu=False):
+
+def kafa_gorseli_temin_et(kafa_dosya_adi):
+    """
+    Kafa görselini öncelikle CloudStorage/GoogleDrive üzerindeki CorvusCloud havuzundan,
+    ardından yerel projeden arar ve Assets/kafa.png konumuna kopyalar.
+    """
+    cloud_kafa = os.path.expanduser(f"~/Library/CloudStorage/GoogleDrive-ufukcelen@gmail.com/Drive'ım/CorvusCloud/AfterEffects_Sablonlari/Bfü Duyuru Projesi/Assets/kafalar/{kafa_dosya_adi}")
+    
+    # 1. Google Drive CloudStorage
+    if os.path.isfile(cloud_kafa) and os.path.getsize(cloud_kafa) > 1000:
+        hedef = os.path.join(BASE_DIR, "kafa.png")
+        shutil.copyfile(cloud_kafa, hedef)
+        return hedef
+    
+    # 2. Yerel Assets/kafalar
+    yerel_kafa = os.path.join(BASE_DIR, "kafalar", kafa_dosya_adi)
+    if os.path.isfile(yerel_kafa) and os.path.getsize(yerel_kafa) > 1000:
+        hedef = os.path.join(BASE_DIR, "kafa.png")
+        shutil.copyfile(yerel_kafa, hedef)
+        return hedef
+        
+    # 3. Yerel Assets doğrudan
+    direkt_kafa = os.path.join(BASE_DIR, kafa_dosya_adi)
+    if os.path.isfile(direkt_kafa) and os.path.getsize(direkt_kafa) > 1000:
+        hedef = os.path.join(BASE_DIR, "kafa.png")
+        shutil.copyfile(direkt_kafa, hedef)
+        return hedef
+
+    console.print(f"[bold red][UYARI][/bold red] Kafa görseli bulunamadı: {kafa_dosya_adi}")
+    return None
+
+def canli_mac_veya_sonu_yap(mac_sonu=False, kadir_var=True):
     """Canlı Maç Sohbeti veya Maç Sonu duyuru otomasyonunu yürütür."""
     while True:
         tarih_girdisi = Prompt.ask("[bold cyan]Tarih (YYYY-MM-DD)[/bold cyan]", default=BUGUN_YAZISI)
@@ -948,7 +979,11 @@ def canli_mac_veya_sonu_yap(mac_sonu=False):
     shutil.copyfile(os.path.join(BASE_DIR, "Borders", b_map.get(lig_id, "superlig.png")), os.path.join(BASE_DIR, "cerceve.png"))
     shutil.copyfile(os.path.join(BASE_DIR, "arkaPlanlar", bg_map.get(lig_id, "superligback.png")), os.path.join(BASE_DIR, "arkaPlan.png"))
     shutil.copyfile(os.path.join(BASE_DIR, "alt", "maç sonu.png" if mac_sonu else "canlı maç sohbetlerİ.png"), os.path.join(BASE_DIR, "konu.png"))
-    shutil.copyfile(os.path.join(BASE_DIR, "kafalar", "millitakım.png" if lig_id == 5 else "haftalık.png"), os.path.join(BASE_DIR, "kafa.png"))
+    if kadir_var:
+        secilen_kafa = "millitakım.png" if lig_id == 5 else "haftalık.png"
+    else:
+        secilen_kafa = "cyM.png" if lig_id == 5 else "cyK.png"
+    kafa_gorseli_temin_et(secilen_kafa)
     shutil.copyfile(os.path.join(BASE_DIR, "dosyalar", "VS.png"), os.path.join(BASE_DIR, "VS.png"))
 
     logo_hazirla(mac_verisi['teams']['home'].get('logo'), os.path.join(BASE_DIR, "evTakım.png"), "Ev sahibi")
