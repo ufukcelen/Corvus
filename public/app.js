@@ -276,20 +276,19 @@ async function initCalendarData() {
     }
   }
 
-  // Gemini AI Maçlarını localStorage'dan veya varsayılan fikstürden yükle (Eski mock maçları ayıkla)
+  // Gemini AI Maçlarını localStorage'dan yükle (Dummy ve sahte maçları ayıkla)
   const localMatches = localStorage.getItem("corvus_gemini_matches") || localStorage.getItem("tellal_gemini_matches");
   if (localMatches) {
     try {
       const parsed = JSON.parse(localMatches);
-      state.geminiMatches = (parsed || []).filter(m => !MOCK_MATCH_IDS.has(m.id));
-      if (state.geminiMatches.length === 0) {
-        state.geminiMatches = [...GEMINI_AI_FIXTURES];
-      }
+      state.geminiMatches = (parsed || []).filter(m => 
+        m && m.id && !MOCK_MATCH_IDS.has(m.id) && !m.id.startsWith("real-") && !m.id.startsWith("match-")
+      );
     } catch (e) {
-      state.geminiMatches = [...GEMINI_AI_FIXTURES];
+      state.geminiMatches = [];
     }
   } else {
-    state.geminiMatches = [...GEMINI_AI_FIXTURES];
+    state.geminiMatches = [];
   }
   localStorage.setItem("corvus_gemini_matches", JSON.stringify(state.geminiMatches));
   localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
@@ -351,10 +350,23 @@ function parseYayinSatiri(satir, index) {
   let gun = "Belirtilmedi";
   let saat = "20:00";
 
+  // Saat tespiti: Metin içerisindeki açık saat formatını (örn: 22:30 veya 22.30) kesin olarak tespit et
+  const timeRegex = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/;
+  const timeMatch = temizSatir.match(timeRegex);
+  if (timeMatch) {
+    saat = `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`;
+  }
+
   if (temizSatir.includes(" - ")) {
     const segmentler = temizSatir.split(" - ");
     if (segmentler.length >= 3) {
-      saat = segmentler[segmentler.length - 1].trim();
+      const lastSeg = segmentler[segmentler.length - 1].trim();
+      const lastMatch = lastSeg.match(timeRegex);
+      if (lastMatch) {
+        saat = `${lastMatch[1].padStart(2, "0")}:${lastMatch[2]}`;
+      } else {
+        saat = lastSeg;
+      }
       gun = segmentler[segmentler.length - 2].trim();
       yayinAdi = segmentler.slice(0, -2).join(" - ").trim();
     } else if (segmentler.length === 2) {
@@ -2045,473 +2057,9 @@ function broadcastMatchesDay(item, d, monthIdx, year, dayName, isToday, todayDat
 // =====================================================================
 // GEMINI AI MAÇ TAKİP VE TAKVİM ASİSTANI (NORMAL TAKVİM GRİDİ İÇİN)
 // =====================================================================
-const GEMINI_AI_FIXTURES = [
-  {
-    "id": "real-milli-fra-tur-15",
-    "takimlar": "Fransa - Türkiye 🇹🇷",
-    "kisaAd": "Fransa - Türkiye 🇹🇷",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "UEFA Uluslar A Ligi",
-    "tip": "futbol",
-    "gun": 15,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "22:45",
-    "aciklama": "🇹🇷 22:45 Fransa vs Türkiye (UEFA Uluslar A Ligi Kritik Maç)"
-  },
-  {
-    "id": "real-vol-vakif-aras-15",
-    "takimlar": "VakıfBank - Aras Kargo",
-    "kisaAd": "VakıfBank - Aras Kargo 🏐",
-    "brans": "voleybol",
-    "bransAdi": "Voleybol",
-    "ikon": "🏐",
-    "lig": "Vodafone Sultanlar Ligi",
-    "tip": "voleybol",
-    "gun": 15,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "14:00",
-    "aciklama": "🏐 14:00 Sultanlar Ligi: VakıfBank vs Aras Kargo"
-  },
-  {
-    "id": "real-vol-zeren-eczaci-15",
-    "takimlar": "Zeren Spor - Eczacıbaşı",
-    "kisaAd": "Zeren Spor - Eczacıbaşı 🏐",
-    "brans": "voleybol",
-    "bransAdi": "Voleybol",
-    "ikon": "🏐",
-    "lig": "Vodafone Sultanlar Ligi",
-    "tip": "voleybol",
-    "gun": 15,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "17:00",
-    "aciklama": "🏐 17:00 Sultanlar Ligi: Zeren Spor vs Eczacıbaşı Dynavit"
-  },
-  {
-    "id": "real-ten-atp-open-15",
-    "takimlar": "Nitto ATP Finalleri (Torino) Açılış",
-    "kisaAd": "ATP Finalleri Açılış 🎾",
-    "brans": "tenis",
-    "bransAdi": "Tenis",
-    "ikon": "🎾",
-    "lig": "Nitto ATP Finals (Torino)",
-    "tip": "tenis",
-    "gun": 15,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "16:00",
-    "aciklama": "🎾 16:00 Nitto ATP Finalleri (Torino) Sezon Sonu Zirvesi Açılış Karşılaşmaları"
-  },
-  {
-    "id": "real-euro-fb-asvel-17",
-    "takimlar": "Fenerbahçe Beko - LDLC ASVEL",
-    "kisaAd": "FB Beko - ASVEL 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 17,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:45",
-    "aciklama": "🏆 20:45 EuroLeague: Fenerbahçe Beko vs LDLC ASVEL"
-  },
-  {
-    "id": "real-euro-dubai-efes-17",
-    "takimlar": "Dubai Basketball - Anadolu Efes",
-    "kisaAd": "Dubai - Efes 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 17,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:00",
-    "aciklama": "🏆 20:00 EuroLeague: Dubai Basketball vs Anadolu Efes"
-  },
-  {
-    "id": "real-nba-hou-mavs-18",
-    "takimlar": "Houston Rockets - Dallas Mavericks",
-    "kisaAd": "Rockets - Mavs (Alperen) 🏀",
-    "brans": "nba",
-    "bransAdi": "NBA",
-    "ikon": "🏀",
-    "lig": "NBA Normal Sezon",
-    "tip": "nba",
-    "gun": 18,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "04:00",
-    "aciklama": "🏀 04:00 NBA: Houston Rockets (Alperen Şengün) vs Dallas Mavericks (Doncic)"
-  },
-  {
-    "id": "real-euro-milano-fb-19",
-    "takimlar": "Olimpia Milano - Fenerbahçe Beko",
-    "kisaAd": "Milano - FB Beko 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 19,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "22:30",
-    "aciklama": "🏆 22:30 EuroLeague: Olimpia Milano vs Fenerbahçe Beko"
-  },
-  {
-    "id": "real-euro-efes-asvel-20",
-    "takimlar": "Anadolu Efes - LDLC ASVEL",
-    "kisaAd": "Efes - ASVEL 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 20,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:30",
-    "aciklama": "🏆 20:30 EuroLeague: Anadolu Efes vs LDLC ASVEL"
-  },
-  {
-    "id": "real-sl-gs-samsun-21",
-    "takimlar": "Galatasaray - Samsunspor",
-    "kisaAd": "GS - Samsunspor ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 21,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Galatasaray vs Samsunspor (Süper Lig 12. Hafta)"
-  },
-  {
-    "id": "real-sl-kocaeli-fb-21",
-    "takimlar": "Kocaelispor - Fenerbahçe",
-    "kisaAd": "Kocaelispor - FB ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 21,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Kocaelispor vs Fenerbahçe (Süper Lig 12. Hafta)"
-  },
-  {
-    "id": "real-vol-vakif-eczaci-21",
-    "takimlar": "VakıfBank - Eczacıbaşı Dynavit",
-    "kisaAd": "VakıfBank - Eczacıbaşı 🏐",
-    "brans": "voleybol",
-    "bransAdi": "Voleybol",
-    "ikon": "🏐",
-    "lig": "Vodafone Sultanlar Ligi",
-    "tip": "voleybol",
-    "gun": 21,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "17:00",
-    "aciklama": "🏐 17:00 Sultanlar Ligi Derbi: VakıfBank vs Eczacıbaşı Dynavit"
-  },
-  {
-    "id": "real-ten-atp-semi-21",
-    "takimlar": "ATP Finalleri Yarı Final",
-    "kisaAd": "ATP Finalleri Yarı Final 🎾",
-    "brans": "tenis",
-    "bransAdi": "Tenis",
-    "ikon": "🎾",
-    "lig": "Nitto ATP Finals (Torino)",
-    "tip": "tenis",
-    "gun": 21,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "16:30",
-    "aciklama": "🎾 16:30 Nitto ATP Finalleri (Torino) Yarı Final Karşılaşmaları"
-  },
-  {
-    "id": "real-f1-vegas-gp-22",
-    "takimlar": "Formula 1 Las Vegas GP (Ana Yarış)",
-    "kisaAd": "Las Vegas GP 🏎️",
-    "brans": "f1",
-    "bransAdi": "Formula 1",
-    "ikon": "🏎️",
-    "lig": "Formula 1 Dünya Şampiyonası",
-    "tip": "f1",
-    "gun": 22,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "09:00",
-    "aciklama": "🏎️ 09:00 Formula 1: Las Vegas Grand Prix Gece Yarışı"
-  },
-  {
-    "id": "real-sl-ts-eyup-22",
-    "takimlar": "Trabzonspor - Eyüpspor",
-    "kisaAd": "TS - Eyüpspor ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 22,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "16:00",
-    "aciklama": "⚽ 16:00 Trabzonspor vs Eyüpspor (Süper Lig 12. Hafta)"
-  },
-  {
-    "id": "real-sl-konya-bjk-22",
-    "takimlar": "Konyaspor - Beşiktaş",
-    "kisaAd": "Konyaspor - BJK ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 22,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Konyaspor vs Beşiktaş (Süper Lig 12. Hafta)"
-  },
-  {
-    "id": "real-ten-atp-final-22",
-    "takimlar": "ATP Finalleri Şampiyonluk Maçı",
-    "kisaAd": "ATP Finalleri Final 🎾",
-    "brans": "tenis",
-    "bransAdi": "Tenis",
-    "ikon": "🎾",
-    "lig": "Nitto ATP Finals (Torino)",
-    "tip": "tenis",
-    "gun": 22,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "18:00",
-    "aciklama": "🎾 18:00 Nitto ATP Finalleri (Torino) Sezon Sonu Şampiyonluk Maçı"
-  },
-  {
-    "id": "real-euro-oly-fb-24",
-    "takimlar": "Olympiacos - Fenerbahçe Beko",
-    "kisaAd": "Olympiacos - FB Beko 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 24,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "21:15",
-    "aciklama": "🏆 21:15 EuroLeague: Olympiacos vs Fenerbahçe Beko"
-  },
-  {
-    "id": "real-euro-efes-pana-25",
-    "takimlar": "Anadolu Efes - Panathinaikos",
-    "kisaAd": "Efes - Panathinaikos 🏆",
-    "brans": "eurolig",
-    "bransAdi": "EuroLig Basket",
-    "ikon": "🏆",
-    "lig": "EuroLeague",
-    "tip": "eurolig",
-    "gun": 25,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:00",
-    "aciklama": "🏆 20:00 EuroLeague: Anadolu Efes vs Panathinaikos"
-  },
-  {
-    "id": "real-uefa-gs-ucl5-25",
-    "takimlar": "Galatasaray - Liverpool",
-    "kisaAd": "GS - Liverpool (UCL) ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "UEFA Şampiyonlar Ligi",
-    "tip": "futbol",
-    "gun": 25,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "22:00",
-    "aciklama": "⚽ 22:00 Galatasaray vs Liverpool (UEFA Şampiyonlar Ligi 5. Hafta)"
-  },
-  {
-    "id": "real-uefa-rm-fb-26",
-    "takimlar": "Real Madrid - Fenerbahçe",
-    "kisaAd": "Real Madrid - FB (UCL) ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "UEFA Şampiyonlar Ligi",
-    "tip": "futbol",
-    "gun": 26,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "23:00",
-    "aciklama": "⚽ 23:00 Real Madrid vs Fenerbahçe (UEFA Şampiyonlar Ligi 5. Hafta)"
-  },
-  {
-    "id": "real-uefa-bjk-braga-26",
-    "takimlar": "Beşiktaş - Braga",
-    "kisaAd": "BJK - Braga (UEL) ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "UEFA Avrupa Ligi",
-    "tip": "futbol",
-    "gun": 26,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:45",
-    "aciklama": "⚽ 20:45 Beşiktaş vs Braga (UEFA Avrupa Ligi 5. Hafta)"
-  },
-  {
-    "id": "real-uefa-ts-basel-27",
-    "takimlar": "Trabzonspor - Basel",
-    "kisaAd": "TS - Basel (UECL) ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "UEFA Konferans Ligi",
-    "tip": "futbol",
-    "gun": 27,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "20:45",
-    "aciklama": "⚽ 20:45 Trabzonspor vs Basel (UEFA Konferans Ligi 5. Hafta)"
-  },
-  {
-    "id": "real-nba-hou-den-27",
-    "takimlar": "Houston Rockets - Denver Nuggets",
-    "kisaAd": "Rockets - Nuggets (Alperen) 🏀",
-    "brans": "nba",
-    "bransAdi": "NBA",
-    "ikon": "🏀",
-    "lig": "NBA Normal Sezon",
-    "tip": "nba",
-    "gun": 27,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "04:00",
-    "aciklama": "🏀 04:00 NBA: Houston Rockets (Alperen) vs Denver Nuggets (Jokic)"
-  },
-  {
-    "id": "real-vol-fb-vakif-28",
-    "takimlar": "Fenerbahçe Medicana - VakıfBank",
-    "kisaAd": "FB - VakıfBank 🏐",
-    "brans": "voleybol",
-    "bransAdi": "Voleybol",
-    "ikon": "🏐",
-    "lig": "Vodafone Sultanlar Ligi",
-    "tip": "voleybol",
-    "gun": 28,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "18:30",
-    "aciklama": "🏐 18:30 Sultanlar Ligi Derbi: Fenerbahçe Medicana vs VakıfBank"
-  },
-  {
-    "id": "real-f1-katar-gp-29",
-    "takimlar": "Formula 1 Katar GP (Ana Yarış)",
-    "kisaAd": "Katar GP 🏎️",
-    "brans": "f1",
-    "bransAdi": "Formula 1",
-    "ikon": "🏎️",
-    "lig": "Formula 1 Dünya Şampiyonası",
-    "tip": "f1",
-    "gun": 29,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "🏎️ 19:00 Formula 1: Lusail (Katar) Grand Prix Ana Yarışı"
-  },
-  {
-    "id": "real-sl-fb-alanya-29",
-    "takimlar": "Fenerbahçe - Alanyaspor",
-    "kisaAd": "FB - Alanyaspor ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 29,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Fenerbahçe vs Alanyaspor (Süper Lig 13. Hafta)"
-  },
-  {
-    "id": "real-sl-antalya-gs-30",
-    "takimlar": "Antalyaspor - Galatasaray",
-    "kisaAd": "Antalyaspor - GS ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 30,
-    "ay": 10,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Antalyaspor vs Galatasaray (Süper Lig 13. Hafta)"
-  },
-  {
-    "id": "real-sl-gs-sivas-05dec",
-    "takimlar": "Galatasaray - Sivasspor",
-    "kisaAd": "GS - Sivasspor ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 5,
-    "ay": 11,
-    "yil": 2026,
-    "saat": "19:00",
-    "aciklama": "⚽ 19:00 Galatasaray vs Sivasspor (Süper Lig 14. Hafta)"
-  },
-  {
-    "id": "real-sl-bjk-fb-06dec",
-    "takimlar": "Beşiktaş - Fenerbahçe",
-    "kisaAd": "BJK - FB Derbisi ⚽",
-    "brans": "futbol",
-    "bransAdi": "Futbol",
-    "ikon": "⚽",
-    "lig": "Trendyol Süper Lig",
-    "tip": "futbol",
-    "gun": 6,
-    "ay": 11,
-    "yil": 2026,
-    "saat": "20:00",
-    "aciklama": "⚽ 20:00 Beşiktaş vs Fenerbahçe (Büyük Derbi - Süper Lig 14. Hafta)"
-  },
-  {
-    "id": "real-f1-abudhabi-gp-06dec",
-    "takimlar": "Formula 1 Abu Dhabi GP (Sezon Finali)",
-    "kisaAd": "Abu Dhabi GP (Final) 🏎️",
-    "brans": "f1",
-    "bransAdi": "Formula 1",
-    "ikon": "🏎️",
-    "lig": "Formula 1 Dünya Şampiyonası",
-    "tip": "f1",
-    "gun": 6,
-    "ay": 11,
-    "yil": 2026,
-    "saat": "16:00",
-    "aciklama": "🏎️ 16:00 Formula 1: Abu Dhabi Grand Prix (2026 Dünya Şampiyonası Sezon Finali)"
-  }
-];
+// KESİN KURAL: Asla dummy (gerçekte olmayan veya uydurma) maç/etkinlik takvime eklenmez.
+// Yalnızca kullanıcı tarafından eklenen veya teyitli gerçek etkinlikler gösterilir.
+const GEMINI_AI_FIXTURES = [];
 
 async function senkronizeGeminiMatches() {
   try {
@@ -2519,10 +2067,12 @@ async function senkronizeGeminiMatches() {
     if (res.ok) {
       const data = await res.json();
       if (data && Array.isArray(data.matches)) {
-        // Eski sahte (mock) maçları anında filtrele
-        const filtered = data.matches.filter(m => !MOCK_MATCH_IDS.has(m.id));
+        // Dummy ve sahte maçları kesinlikle filtrele
+        const filtered = data.matches.filter(m => 
+          m && m.id && !MOCK_MATCH_IDS.has(m.id) && !m.id.startsWith("real-") && !m.id.startsWith("match-")
+        );
         if (JSON.stringify(filtered) !== JSON.stringify(state.geminiMatches)) {
-          state.geminiMatches = filtered.length > 0 ? filtered : [...GEMINI_AI_FIXTURES];
+          state.geminiMatches = filtered;
           localStorage.setItem("tellal_gemini_matches", JSON.stringify(state.geminiMatches));
           renderMonthCalendar();
         }
@@ -2649,9 +2199,15 @@ async function callGeminiToParseMatch(text) {
     throw new Error("Gemini API anahtarı yapılandırılmamış.");
   }
   const now = new Date();
-  const prompt = `Aşağıdaki metinden maç / spor karşılaşması bilgilerini çıkarıp tek bir JSON objesi döndür:
+  const prompt = `Aşağıdaki metinden maç / spor karşılaşması / canlı yayın bilgilerini çıkarıp tek bir JSON objesi döndür:
 Metin: "${text}"
 Bugünün referans tarihi: ${now.getDate()} ${AY_ISIMLERI[now.getMonth()]} ${now.getFullYear()}.
+
+KESİN VE TAVİZSİZ KURALLAR:
+1. ASLA dummy veya uydurma veri üretme (NO HALLUCINATIONS, NO FAKE DATA). Sadece metinde açıkça yazan gerçek bilgileri kullan.
+2. Başlama saatini metindeki saatten BİREBİR VE EKSİKSİZ al (örn: metinde 22:30 veya 20:45 yazıyorsa saat kesinlikle o olmalıdır). Metinde saat yoksa "20:00" varsayılanını kullan.
+3. Tarih bilgisini metindeki gerçek gün ve aydan çıkar. Uydurma gün/ay ataması yapma.
+
 Zorunlu JSON Formatı:
 {
   "id": "gemini-${Date.now()}",
@@ -2727,66 +2283,9 @@ function normalizeGeminiMatch(m) {
   return m;
 }
 
+// Kesin Kural: ASLA dummy veya uydurma fikstür üretilmez.
 async function fetchGemini21DayFixtures() {
-  const apiKey = await getGeminiApiKey();
-  if (!apiKey) return null;
-
-  const now = new Date();
-  const endDate = new Date(now.getTime() + 21 * 24 * 60 * 60 * 1000);
-  
-  const prompt = `Sen spor takvimi veri motorusun. Bugün: ${now.getDate()} ${AY_ISIMLERI[now.getMonth()]} ${now.getFullYear()}.
-Önümüzdeki 21 günlük dönem için (${now.getDate()} ${AY_ISIMLERI[now.getMonth()]} - ${endDate.getDate()} ${AY_ISIMLERI[endDate.getMonth()]} ${endDate.getFullYear()}) Türkiye ve dünya sporundaki en önemli maç ve yarışları listele (EN AZ 20 ADET):
-1. Futbol: Trendyol Süper Lig (GS, FB, BJK, TS maçları) ve UEFA Şampiyonlar/Avrupa/Konferans Ligi 5. hafta maçları.
-2. EuroLeague Basketbol: Fenerbahçe Beko ve Anadolu Efes maçları.
-3. Vodafone Sultanlar Ligi: VakıfBank, Eczacıbaşı Dynavit, Fenerbahçe Medicana maçları.
-4. NBA: Houston Rockets (Alperen Şengün) maçları.
-5. Formula 1: Takvimdeki Grand Prix yarışları (Las Vegas GP 22 Kasım, Katar GP 29 Kasım, Abu Dhabi GP 6 Aralık).
-6. Tenis: Nitto ATP Finalleri (Torino).
-
-JSON Array Formatı:
-[
-  {
-    "id": "gemini-match-id",
-    "takimlar": "Ev Sahibi - Deplasman",
-    "kisaAd": "Kısa İsim (örn: GS - FB ⚽)",
-    "brans": "futbol" | "voleybol" | "nba" | "eurolig" | "tenis" | "f1",
-    "bransAdi": "Futbol" | "Voleybol" | "NBA" | "EuroLig Basket" | "Tenis" | "Formula 1",
-    "ikon": "⚽" | "🏐" | "🏀" | "🏆" | "🎾" | "🏎️",
-    "lig": "Lig veya Turnuva Adı",
-    "tip": "futbol" | "voleybol" | "nba" | "eurolig" | "tenis" | "f1",
-    "gun": GünSayısı (1-31),
-    "ay": AyIndexi (0=Ocak, 1=Şubat, ..., 10=Kasım, 11=Aralık),
-    "yil": YılSayısı (2026),
-    "saat": "HH:MM",
-    "aciklama": "Detaylı açıklama"
-  }
-]
-ÖNEMLİ: 'ay' değeri JavaScript 0-tabanlı ay indeksidir (10 = Kasım, 11 = Aralık).
-Sadece geçerli bir JSON array döndür.`;
-
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (rawText) {
-        const parsed = JSON.parse(rawText);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(m => normalizeGeminiMatch(m)).filter(Boolean);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Gemini 21-day canlı tarama uyarısı:", err);
-  }
-  return null;
+  return [];
 }
 
 async function runGeminiAiMatchScanner(isManual = false) {
@@ -2795,44 +2294,12 @@ async function runGeminiAiMatchScanner(isManual = false) {
     return;
   }
 
-  const now = new Date();
-  const todayDay = now.getDate();
-  const thisMonth = now.getMonth();
-  const thisYear = now.getFullYear();
-
-  // 1. Manuel tıklandığında veya az maç varsa doğrudan Gemini 3.5 Flash yapay zekasını çalıştır
-  let liveMatches = null;
-  if (isManual || !state.geminiMatches || state.geminiMatches.length < 8) {
-    liveMatches = await fetchGemini21DayFixtures();
-  }
-
-  // 2. Canlı Gemini maçları, yerel teyitli liste ve GEMINI_AI_FIXTURES'ı birleştir
-  const mergedMap = new Map();
-
-  // Temel teyitli fikstür havuzu
-  GEMINI_AI_FIXTURES.forEach(m => {
-    mergedMap.set(m.id, normalizeGeminiMatch(m));
-  });
-
-  // Kullanıcının mevcut teyitli maçları
-  (state.geminiMatches || []).forEach(m => {
-    if (!MOCK_MATCH_IDS.has(m.id)) {
-      mergedMap.set(m.id, normalizeGeminiMatch(m));
-    }
-  });
-
-  // Canlı Gemini AI taramasından gelen taze maçlar
-  if (Array.isArray(liveMatches) && liveMatches.length > 0) {
-    liveMatches.forEach(m => {
-      mergedMap.set(m.id, m);
-    });
-  }
-
-  // 3. Bugünden önceki geçmiş günlerin maçlarını filtrele
-  state.geminiMatches = Array.from(mergedMap.values()).filter(m => {
-    if (m.yil < thisYear) return false;
-    if (m.yil === thisYear && m.ay < thisMonth) return false;
-    if (m.yil === thisYear && m.ay === thisMonth && m.gun < todayDay) return false;
+  // KESİN KURAL: Asla dummy (uydurma / hayali) maç takvime eklenmez.
+  // Yalnızca kullanıcı tarafından eklenmiş gerçek, teyitli karşılaşmalar korunur.
+  state.geminiMatches = (state.geminiMatches || []).filter(m => {
+    if (!m || !m.id) return false;
+    if (MOCK_MATCH_IDS.has(m.id)) return false;
+    if (typeof m.id === "string" && (m.id.startsWith("real-") || m.id.startsWith("match-"))) return false;
     return true;
   });
 
@@ -2842,7 +2309,7 @@ async function runGeminiAiMatchScanner(isManual = false) {
   // Normal takvimi yeniden render et
   renderMonthCalendar();
 
-  // Firebase RTDB gemini_matches.json tablosuna kaydet
+  // Firebase RTDB gemini_matches.json tablosundaki dummy kayıtları temizle
   try {
     await fetch(`${FIREBASE_DB_URL}/gemini_matches.json`, {
       method: "PUT",
@@ -2850,7 +2317,7 @@ async function runGeminiAiMatchScanner(isManual = false) {
       body: JSON.stringify({
         matches: state.geminiMatches,
         son_guncelleme: Math.floor(Date.now() / 1000),
-        kaynak: liveMatches ? "Gemini 3.5 Flash (Canlı 21 Günlük Fikstür)" : "Gemini AI (Teyitli 21 Günlük Fikstür)"
+        kaynak: "Teyitli Gerçek Karşılaşmalar (Dummy Veriler Engellendi)"
       })
     });
   } catch (e) {
@@ -2858,8 +2325,7 @@ async function runGeminiAiMatchScanner(isManual = false) {
   }
 
   if (isManual) {
-    const liveNote = (liveMatches && liveMatches.length > 0) ? " (Canlı Gemini 3.5 Flash ile güncellendi)" : "";
-    showToast(`✨ Gemini AI: 21 günlük ${state.geminiMatches.length} karşılaşma takvime başarıyla işlendi!${liveNote}`, "success");
+    showToast("✅ Takvim güncellendi: Dummy veriler temizlendi, sadece teyitli gerçek etkinlikler gösteriliyor.", "success");
   }
 }
 
